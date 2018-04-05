@@ -589,6 +589,21 @@ and RAW sensor value for calibration points.
 #### DISABLE_FILAMENT_WIDTH_LOG
 `DISABLE_FILAMENT_WIDTH_LOG`: Turn off diameter logging.
 
+### [heater_calibrate]
+
+The heater_calibrate module is automatically loaded if a heater is
+defined in the config file.
+
+#### HEATER_CALIBRATE
+
+`HEATER_CALIBRATE HEATER=<config_name> TARGET=<temperature>
+[WRITE_FILE=1]`: Detect the FOPDT parameters of a heater. The
+specified heater will be enabled until the specified target
+temperature is reached and then the heater will be turned off. If the
+WRITE_FILE parameter is enabled, then the file /tmp/heattest.txt will
+be created with a log of all temperature samples taken during the
+test.
+
 ### [heaters]
 
 The heaters module is automatically loaded if a heater is defined in
