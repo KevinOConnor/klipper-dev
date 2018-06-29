@@ -14,6 +14,7 @@
 // This code is written in C (instead of python) for processing
 // efficiency - the repetitive integer math is vastly faster in C.
 
+#include <float.h> // DBL_MAX
 #include <math.h> // sqrt
 #include <stddef.h> // offsetof
 #include <stdint.h> // uint32_t
@@ -34,6 +35,8 @@ struct stepcompress {
     // Internal tracking
     uint32_t max_error;
     double mcu_time_offset, mcu_freq, last_step_print_time;
+    uint32_t last_interval;
+    uint64_t last_ideal_step_clock;
     // Message generation
     uint64_t last_step_clock;
     struct list_head msg_queue;
@@ -68,18 +71,63 @@ struct history_steps {
  * Step compression
  ****************************************************************/
 
+// Helper function returning n/d while rounding up and supporting signed n
 static inline int32_t
 idiv_up(int32_t n, int32_t d)
 {
     return (n>=0) ? DIV_ROUND_UP(n,d) : (n/d);
 }
 
+// Helper function returning n/d while rounding down and supporting signed n
 static inline int32_t
 idiv_down(int32_t n, int32_t d)
 {
     return (n>=0) ? (n/d) : (n - d + 1) / d;
 }
 
+// Store a limited 'queue_step' schedule based on just 'add' and 'count'
+struct add_move {
+    int32_t add;
+    int32_t count;
+};
+
+// Store a mutable reference to the stepcompress step queue
+struct queue_ref {
+    struct stepcompress *sc;
+    uint32_t *queue_pos, *queue_end;
+    uint64_t last_step_clock, last_ideal_step_clock;
+    uint32_t last_interval;
+};
+
+// Initialize a 'struct queue_ref'
+static void
+qr_init(struct queue_ref *qr, struct stepcompress *sc, uint32_t max_count)
+{
+    qr->sc = sc;
+    qr->queue_pos = sc->queue_pos;
+    qr->queue_end = sc->queue_next;
+    if (qr->queue_end > &qr->queue_pos[max_count])
+        qr->queue_end = &qr->queue_pos[max_count];
+    qr->last_step_clock = sc->last_step_clock;
+    qr->last_ideal_step_clock = sc->last_ideal_step_clock;
+    qr->last_interval = sc->last_interval;
+}
+
+// Generate a 'struct queue_ref' state after a 'struct add_move' is scheduled
+static void
+qr_after_move(struct queue_ref *nqr, struct queue_ref *oqr, struct add_move *am)
+{
+    memcpy(nqr, oqr, sizeof(*nqr));
+    int32_t add = am->add, count = am->count, addfactor = count*(count+1)/2;
+    nqr->last_ideal_step_clock = ((nqr->queue_pos[count - 1]
+                                   - (uint32_t)nqr->last_step_clock)
+                                  + nqr->last_step_clock);
+    nqr->queue_pos += count;
+    nqr->last_step_clock += nqr->last_interval * count + addfactor * add;
+    nqr->last_interval += count * add;
+}
+
+// Storage for the maximum and minimum range a step may be scheduled at
 struct points {
     int32_t minp, maxp;
 };
@@ -87,115 +135,240 @@ struct points {
 // Given a requested step time, return the minimum and maximum
 // acceptable times
 static inline struct points
-minmax_point(struct stepcompress *sc, uint32_t *pos)
+minmax_point(struct queue_ref *qr, uint32_t *pos)
 {
-    uint32_t lsc = sc->last_step_clock, point = *pos - lsc;
-    uint32_t prevpoint = pos > sc->queue_pos ? *(pos-1) - lsc : 0;
+    uint32_t lsc = qr->last_step_clock, point = *pos - lsc;
+    uint32_t prevpoint = pos > qr->queue_pos ? *(pos-1) - lsc : 0;
     uint32_t max_error = (point - prevpoint) / 2;
-    if (max_error > sc->max_error)
-        max_error = sc->max_error;
+    if (max_error > qr->sc->max_error)
+        max_error = qr->sc->max_error;
     return (struct points){ point - max_error, point };
 }
 
-// The maximum add delta between two valid quadratic sequences of the
-// form "add*count*(count-1)/2 + interval*count" is "(6 + 4*sqrt(2)) *
-// maxerror / (count*count)".  The "6 + 4*sqrt(2)" is 11.65685, but
-// using 11 works well in practice.
-#define QUADRATIC_DEV 11
+// Store the minimum and maximum "add" a queue_step may schedule
+struct add_range {
+    int32_t minadd, maxadd, count;
+};
 
-// Find a 'step_move' that covers a series of step times
-static struct step_move
-compress_bisect_add(struct stepcompress *sc)
+// Initialize a 'struct add_range'
+static void
+add_range_init(struct add_range *ar)
 {
-    uint32_t *qlast = sc->queue_next;
-    if (qlast > sc->queue_pos + 65535)
-        qlast = sc->queue_pos + 65535;
-    struct points point = minmax_point(sc, sc->queue_pos);
-    int32_t outer_mininterval = point.minp, outer_maxinterval = point.maxp;
-    int32_t add = 0, minadd = -0x8000, maxadd = 0x7fff;
-    int32_t bestinterval = 0, bestcount = 1, bestadd = 1, bestreach = INT32_MIN;
-    int32_t zerointerval = 0, zerocount = 0;
+    ar->minadd = -0x8000;
+    ar->maxadd = 0x7fff;
+    ar->count = 0;
+}
 
+// Add a step to a 'struct add_range' if possible
+static int
+add_range_update(struct add_range *ar, struct queue_ref *qr)
+{
+    if (&qr->queue_pos[ar->count] >= qr->queue_end)
+        return -1;
+    struct points nextpoint = minmax_point(qr, &qr->queue_pos[ar->count]);
+
+    // Check if can extend sequence
+    int32_t nextcount = ar->count + 1;
+    int32_t nextaddfactor = nextcount*(nextcount+1)/2;
+    int32_t interval = qr->last_interval;
+    int32_t minadd = ar->minadd, maxadd = ar->maxadd;
+    int32_t nextminadd = minadd, nextmaxadd = maxadd;
+    if (interval*nextcount + minadd*nextaddfactor < nextpoint.minp)
+        nextminadd = idiv_up(nextpoint.minp - interval*nextcount
+                             , nextaddfactor);
+    if (interval*nextcount + maxadd*nextaddfactor > nextpoint.maxp)
+        nextmaxadd = idiv_down(nextpoint.maxp - interval*nextcount
+                               , nextaddfactor);
+    if (nextminadd > nextmaxadd)
+        return -1;
+    ar->minadd = nextminadd;
+    ar->maxadd = nextmaxadd;
+    ar->count = nextcount;
+    return 0;
+}
+
+// Find the longest valid 'struct add_range' schedule
+static void
+add_range_scan(struct add_range *ar, struct queue_ref *qr)
+{
+    add_range_init(ar);
     for (;;) {
-        // Find longest valid sequence with the given 'add'
-        struct points nextpoint;
-        int32_t nextmininterval = outer_mininterval;
-        int32_t nextmaxinterval = outer_maxinterval, interval = nextmaxinterval;
-        int32_t nextcount = 1;
-        for (;;) {
-            nextcount++;
-            if (&sc->queue_pos[nextcount-1] >= qlast) {
-                int32_t count = nextcount - 1;
-                return (struct step_move){ interval, count, add };
-            }
-            nextpoint = minmax_point(sc, sc->queue_pos + nextcount - 1);
-            int32_t nextaddfactor = nextcount*(nextcount-1)/2;
-            int32_t c = add*nextaddfactor;
-            if (nextmininterval*nextcount < nextpoint.minp - c)
-                nextmininterval = idiv_up(nextpoint.minp - c, nextcount);
-            if (nextmaxinterval*nextcount > nextpoint.maxp - c)
-                nextmaxinterval = idiv_down(nextpoint.maxp - c, nextcount);
-            if (nextmininterval > nextmaxinterval)
-                break;
-            interval = nextmaxinterval;
-        }
-
-        // Check if this is the best sequence found so far
-        int32_t count = nextcount - 1, addfactor = count*(count-1)/2;
-        int32_t reach = add*addfactor + interval*count;
-        if (reach > bestreach
-            || (reach == bestreach && interval > bestinterval)) {
-            bestinterval = interval;
-            bestcount = count;
-            bestadd = add;
-            bestreach = reach;
-            if (!add) {
-                zerointerval = interval;
-                zerocount = count;
-            }
-            if (count > 0x200)
-                // No 'add' will improve sequence; avoid integer overflow
-                break;
-        }
-
-        // Check if a greater or lesser add could extend the sequence
-        int32_t nextaddfactor = nextcount*(nextcount-1)/2;
-        int32_t nextreach = add*nextaddfactor + interval*nextcount;
-        if (nextreach < nextpoint.minp) {
-            minadd = add + 1;
-            outer_maxinterval = nextmaxinterval;
-        } else {
-            maxadd = add - 1;
-            outer_mininterval = nextmininterval;
-        }
-
-        // The maximum valid deviation between two quadratic sequences
-        // can be calculated and used to further limit the add range.
-        if (count > 1) {
-            int32_t errdelta = sc->max_error*QUADRATIC_DEV / (count*count);
-            if (minadd < add - errdelta)
-                minadd = add - errdelta;
-            if (maxadd > add + errdelta)
-                maxadd = add + errdelta;
-        }
-
-        // See if next point would further limit the add range
-        int32_t c = outer_maxinterval * nextcount;
-        if (minadd*nextaddfactor < nextpoint.minp - c)
-            minadd = idiv_up(nextpoint.minp - c, nextaddfactor);
-        c = outer_mininterval * nextcount;
-        if (maxadd*nextaddfactor > nextpoint.maxp - c)
-            maxadd = idiv_down(nextpoint.maxp - c, nextaddfactor);
-
-        // Bisect valid add range and try again with new 'add'
-        if (minadd > maxadd)
-            break;
-        add = maxadd - (maxadd - minadd) / 4;
+        int ret = add_range_update(ar, qr);
+        if (ret)
+            return;
     }
-    if (zerocount + zerocount/16 >= bestcount)
-        // Prefer add=0 if it's similar to the best found sequence
-        return (struct step_move){ zerointerval, zerocount, 0 };
-    return (struct step_move){ bestinterval, bestcount, bestadd };
+}
+
+// Calculate the "ideal interval" - the ticks since the last ideal step time
+static int32_t
+ideal_interval(struct queue_ref *qr, uint32_t *pos)
+{
+    if (pos > qr->queue_pos)
+        return *pos - *(pos - 1);
+    return *pos - (uint32_t)qr->last_ideal_step_clock;
+}
+
+// Calculate the step time after an add1,count1 and add2,count2 schedule
+static int32_t
+calc_seq(struct queue_ref *qr, int32_t add1, int32_t add2
+         , int32_t c1, int32_t tc)
+{
+    int32_t ad = add1 - add2;
+    int32_t addfactor = tc*(tc+1)/2, paddfactor = c1*(c1-1)/2;
+    return qr->last_interval*tc + add2*addfactor + ad*(c1*tc - paddfactor);
+}
+
+// The "leastsquares" compression code attempts to find a valid
+// add1,count1 sequence that maximizes the "total reach" of a
+// subsequent add2,count2 sequence (maximize count1+count2).  The code
+// finds the simultaneous solution to a set of equations (one per
+// step) of the following form:
+//   add1*ac1 + add2*ac2 = adjusted_ideal_interval
+// Where ac1, ac2, and adjusted_ideal_interval are constants for a
+// given step time.
+
+// Estimate best add1,count1 using leastsquares on totalcount steps
+static struct add_move
+calc_leastsquares(struct queue_ref *qr, int32_t totalcount)
+{
+    // Setup initial least squares variance and covariance values
+    double var_ac1 = 0., var_ac2 = 0., cov_ac1_ac2 = 0.;
+    double cov_ac1_aii = 0., cov_ac2_aii = 0., sum_aii = 0.;
+    //double var_aii = 0.;
+    int32_t step;
+    for (step=1; step<=totalcount; step++) {
+        int32_t want_interval = ideal_interval(qr, qr->queue_pos + step - 1);
+        int32_t aii = want_interval - qr->last_interval;
+        double dac2 = step, daii = aii;
+        cov_ac2_aii += dac2 * daii;
+        var_ac2 += dac2 * dac2;
+        //var_aii += daii * daii;
+        sum_aii += daii;
+    }
+    double condsum_aii = sum_aii;
+
+    // Calc least squares on all possible count1 to find overall best solution
+    struct add_range ar;
+    add_range_init(&ar);
+    double best_e2 = DBL_MAX;
+    struct add_move best = {0, 0};
+    for (;;) {
+        int ret = add_range_update(&ar, qr);
+        if (ret)
+            // Can not further increase count1 - return best result found
+            return best;
+        int32_t count1 = ar.count;
+
+        // Update leastsquares with new count1
+        int32_t want_interval = ideal_interval(qr, qr->queue_pos + count1 - 1);
+        int32_t aii = want_interval - qr->last_interval;
+        cov_ac2_aii -= condsum_aii;
+        cov_ac1_aii += condsum_aii;
+        condsum_aii -= aii;
+        int32_t pc2 = totalcount - count1 + 1, paf = pc2*(pc2+1)/2;
+        int32_t va_diff = pc2 * pc2, caa_diff = paf - count1*pc2;
+        cov_ac1_ac2 += caa_diff;
+        var_ac2 -= va_diff;
+        var_ac1 += va_diff - 2 * caa_diff;
+
+        // Calculate add1 and constrain to valid range
+        double dadd2 = 0.;
+        if (count1 < totalcount) {
+            double determinant = var_ac1*var_ac2 - cov_ac1_ac2*cov_ac1_ac2;
+            double v = var_ac1*cov_ac2_aii - cov_ac1_ac2*cov_ac1_aii;
+            dadd2 = round(v / determinant);
+        }
+        double dadd1 = round((cov_ac1_aii - dadd2*cov_ac1_ac2) / var_ac1);
+        int32_t add1 = dadd1;
+        add1 = add1 > ar.maxadd ? ar.maxadd : add1;
+        add1 = add1 < ar.minadd ? ar.minadd : add1;
+        dadd1 = add1;
+
+        // Recalculate add2 and make sure fits in last step range
+        if (count1 < totalcount)
+            dadd2 = round((cov_ac2_aii - dadd1*cov_ac1_ac2) / var_ac2);
+        int add2 = dadd2;
+        struct points lastr = minmax_point(qr, qr->queue_pos + totalcount - 1);
+        int32_t lastp = calc_seq(qr, add1, add2, count1, totalcount);
+        int32_t count2 = totalcount - count1, af = count2*(count2+1)/2;
+        if (lastp < lastr.minp) {
+            if (lastp + af > lastr.maxp)
+                continue;
+            add2 += DIV_ROUND_UP(lastr.minp - lastp, af);
+        } else if (lastp > lastr.maxp) {
+            if (lastp - af < lastr.minp)
+                continue;
+            add2 -= DIV_ROUND_UP(lastp - lastr.maxp, af);
+        }
+        dadd2 = add2;
+
+        // Estimate relative squared error (add var_aii for absolute error)
+        double rel_error2 = (dadd1*dadd1*var_ac1 + dadd2*dadd2*var_ac2
+                             + 2*dadd1*dadd2*cov_ac1_ac2
+                             - 2*dadd1*cov_ac1_aii - 2*dadd2*cov_ac2_aii);
+        if (rel_error2 <= best_e2) {
+            best.add = add1;
+            best.count = count1;
+            best_e2 = rel_error2;
+        }
+    }
+}
+
+// Compress a step schedule using leastsquares method
+static struct add_move
+compress_leastsquares(struct queue_ref *qr)
+{
+    // Find longest valid count1
+    struct add_range outer_ar1;
+    add_range_scan(&outer_ar1, qr);
+    int32_t outer_count1 = outer_ar1.count;
+    if (!outer_count1) {
+        uint32_t interval = qr->queue_pos[0] - qr->last_step_clock;
+        uint32_t st = interval - qr->last_interval - qr->sc->max_error / 2;
+        return (struct add_move){ st, 1 };
+    }
+
+    // Try finding longest valid "totalcount" by repeatedly running leastsquares
+    int32_t outer_add1 = (outer_ar1.minadd + outer_ar1.maxadd) / 2;
+    struct add_move prev = {outer_add1, outer_count1}, next = prev;
+    int32_t prev_totalcount = 0;
+    for (;;) {
+        // Determine maximum reachable totalcount given count1,add1
+        struct queue_ref qr2;
+        qr_after_move(&qr2, qr, &next);
+        struct add_range ar;
+        add_range_scan(&ar, &qr2);
+        int32_t totalcount = next.count + ar.count;
+
+        // Calculate new add1,count1 using least squares (if needed)
+        if (prev_totalcount >= totalcount)
+            return prev;
+        prev = next;
+        prev_totalcount = totalcount;
+        next = calc_leastsquares(qr, totalcount);
+    }
+}
+
+// Convert a 'struct add_move' to a 'struct step_move'
+static struct step_move
+wrap_compress(struct stepcompress *sc)
+{
+    struct queue_ref qref, *qr = &qref;
+    qr_init(qr, sc, 46000);
+
+    struct add_move am1 = compress_leastsquares(qr);
+    if (am1.count == 1 && qr->queue_pos + 1 < qr->queue_end) {
+        // Check if two 'struct add_move' can be sent in one 'struct step_move'
+        struct queue_ref qr2;
+        qr_after_move(&qr2, qr, &am1);
+        struct add_move am2 = compress_leastsquares(&qr2);
+        if (am2.add >= -0x8000 && am2.add <= 0x7fff)
+            return (struct step_move){ qr->last_interval + am1.add,
+                                       am2.count + 1, am2.add };
+    }
+
+    return (struct step_move){ qr->last_interval + am1.add, am1.count,
+                               am1.count > 1 ? am1.add : 0 };
 }
 
 
@@ -215,10 +388,12 @@ check_line(struct stepcompress *sc, struct step_move move)
                , sc->oid, move.interval, move.count, move.add);
         return ERROR_RET;
     }
+    struct queue_ref qr;
+    qr_init(&qr, sc, 65535);
     uint32_t interval = move.interval, p = 0;
     uint16_t i;
     for (i=0; i<move.count; i++) {
-        struct points point = minmax_point(sc, sc->queue_pos + i);
+        struct points point = minmax_point(&qr, qr.queue_pos + i);
         p += interval;
         if (p < point.minp || p > point.maxp) {
             errorf("stepcompress o=%d i=%d c=%d a=%d: Point %d: %d not in %d:%d"
@@ -347,6 +522,7 @@ add_move(struct stepcompress *sc, uint64_t first_clock, struct step_move *move)
     int32_t addfactor = move->count*(move->count-1)/2;
     uint32_t ticks = move->add*addfactor + move->interval*(move->count-1);
     uint64_t last_clock = first_clock + ticks;
+    sc->last_interval = move->interval + move->add*(move->count-1);
 
     // Create and queue a queue_step command
     uint32_t msg[5] = {
@@ -378,11 +554,14 @@ queue_flush(struct stepcompress *sc, uint64_t move_clock)
     if (sc->queue_pos >= sc->queue_next)
         return 0;
     while (sc->last_step_clock < move_clock) {
-        struct step_move move = compress_bisect_add(sc);
+        struct step_move move = wrap_compress(sc);
         int ret = check_line(sc, move);
         if (ret)
             return ret;
 
+        sc->last_ideal_step_clock = ((sc->queue_pos[move.count - 1]
+                                      - (uint32_t)sc->last_step_clock)
+                                     + sc->last_step_clock);
         add_move(sc, sc->last_step_clock + move.interval, &move);
 
         if (sc->queue_pos + move.count >= sc->queue_next) {
@@ -400,6 +579,7 @@ static int
 stepcompress_flush_far(struct stepcompress *sc, uint64_t abs_step_clock)
 {
     struct step_move move = { abs_step_clock - sc->last_step_clock, 1, 0 };
+    sc->last_ideal_step_clock = abs_step_clock;
     add_move(sc, abs_step_clock, &move);
     calc_last_step_print_time(sc);
     return 0;
@@ -556,6 +736,7 @@ stepcompress_reset(struct stepcompress *sc, uint64_t last_step_clock)
     if (ret)
         return ret;
     sc->last_step_clock = last_step_clock;
+    sc->last_interval = 0;
     sc->sdir = -1;
     calc_last_step_print_time(sc);
     return 0;
