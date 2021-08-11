@@ -265,16 +265,19 @@ class Angle:
         self.sample_period = config.getfloat('sample_period', SAMPLE_PERIOD,
                                              above=0.)
         self.calibration = AngleCalibration(config)
+        self.last_temperature = None
         # Measurement conversion
         self.start_clock = self.time_shift = self.sample_ticks = 0
         self.last_sequence = self.last_angle = 0
+        self.last_chip_mcu_clock = self.last_chip_clock = 0
+        self.chip_freq = 0.
         # Measurement storage (accessed from background thread)
         self.lock = threading.Lock()
         self.raw_samples = []
         # Sensor type
         sensors = { "a1333": (3, 10000000, .000001),
                     "as5047d": (1, int(1. / .000000350), .000100),
-                    "tle5012b": (1, 4000000, .000042700 * 2.5) }
+                    "tle5012b": (1, 4000000, 0.) }
         self.sensor_type = config.getchoice('sensor_type',
                                             {s: s for s in sensors})
         spi_mode, spi_speed, self.static_delay = sensors[self.sensor_type]
@@ -284,6 +287,7 @@ class Angle:
         self.mcu = mcu = self.spi.get_mcu()
         self.oid = oid = mcu.create_oid()
         self.query_spi_angle_cmd = self.query_spi_angle_end_cmd = None
+        self.spi_angle_transfer_cmd = None
         mcu.add_config_cmd(
             "config_spi_angle oid=%d spi_oid=%d spi_angle_type=%s"
             % (oid, self.spi.get_oid(), self.sensor_type))
@@ -311,6 +315,12 @@ class Angle:
         self.query_spi_angle_end_cmd = self.mcu.lookup_query_command(
             "query_spi_angle oid=%c clock=%u rest_ticks=%u time_shift=%c",
             "spi_angle_end oid=%c sequence=%hu", oid=self.oid, cq=cmdqueue)
+        self.spi_angle_transfer_cmd = self.mcu.lookup_query_command(
+            "spi_angle_transfer oid=%c data=%*s",
+            "spi_angle_transfer_response oid=%c clock=%u response=%*s",
+            oid=self.oid, cq=cmdqueue)
+    def get_status(self, eventtime=None):
+        return {'temperature': self.last_temperature}
     # Measurement collection
     def is_measuring(self):
         return self.start_clock != 0
@@ -326,6 +336,13 @@ class Angle:
         clock_to_print_time = self.mcu.clock_to_print_time
         last_sequence = self.last_sequence
         last_angle = self.last_angle
+        is_tle5012b = self.sensor_type == "tle5012b"
+        last_chip_mcu_clock = self.last_chip_mcu_clock
+        chip_freq = self.chip_freq
+        inv_chip_freq = 0.
+        if chip_freq:
+            inv_chip_freq = 1. / chip_freq
+        last_chip_clock = self.last_chip_clock
         # Process every message in raw_samples
         count = error_count = 0
         samples = [None] * (len(raw_samples) * 16)
@@ -345,8 +362,18 @@ class Angle:
                 angle_diff = (last_angle - raw_angle) & 0xffff
                 angle_diff -= (angle_diff & 0x8000) << 1
                 last_angle -= angle_diff
-                mclock = msg_mclock + i*sample_ticks + (tcode<<time_shift)
-                ptime = round(clock_to_print_time(mclock) - static_delay, 6)
+                mclock = msg_mclock + i*sample_ticks
+                if is_tle5012b:
+                    # tcode is tle5012b frame counter
+                    mdiff = mclock - last_chip_mcu_clock
+                    chip_mclock = last_chip_clock + int(mdiff * chip_freq + .5)
+                    cdiff = ((tcode << 10) - chip_mclock) & 0xffff
+                    cdiff -= (cdiff & 0x8000) << 1
+                    sclock = mclock + (cdiff - 0x800) * inv_chip_freq
+                else:
+                    # tcode is mcu clock offset shifted by time_shift
+                    sclock = mclock + (tcode<<time_shift)
+                ptime = round(clock_to_print_time(sclock) - static_delay, 6)
                 samples[count] = (ptime, last_angle)
                 count += 1
         self.last_sequence = last_sequence
@@ -362,11 +389,61 @@ class Angle:
         self.spi.spi_transfer([0xff, 0xfc]) # Read DIAAGC
         self.spi.spi_transfer([0x40, 0x01]) # Read ERRFL
         self.spi.spi_transfer([0xc0, 0x00]) # Read NOP
+    def _tle5012b_crc(self, data):
+        crc = 0xff
+        for d in data:
+            crc ^= d
+            for i in range(8):
+                if crc & 0x80:
+                    crc = (crc << 1) ^ 0x1d
+                else:
+                    crc <<= 1
+        return (~crc) & 0xff
+    def _tle5012b_query(self, msg):
+        for retry in range(5):
+            if msg[0] & 0x04:
+                params = self.spi_angle_transfer_cmd.send([self.oid, msg])
+            else:
+                params = self.spi.spi_transfer(msg)
+            resp = bytearray(params['response'])
+            crc = self._tle5012b_crc(bytearray(msg[:2]) + resp[2:-2])
+            if crc == resp[-1]:
+                return params
+        raise self.printer.command_error("Unable to query tle5012b chip")
+    def _tle5012b_query_clock(self):
+        # Read frame counter (and normalize to a 16bit counter)
+        msg = [0x84, 0x42, 0, 0, 0, 0, 0, 0] # Read with latch, AREV and FSYNC
+        params = self._tle5012b_query(msg)
+        resp = bytearray(params['response'])
+        mcu_clock = self.mcu.clock32_to_clock64(params['clock'])
+        chip_clock = ((resp[2] & 0x7e) << 9) | ((resp[4] & 0x3e) << 4)
+        # Calculate temperature
+        temper = resp[5] - ((resp[4] & 0x01) << 8)
+        self.last_temperature = (temper + 152) / 2.776
+        return mcu_clock, chip_clock
+    def _tle5012b_update_clock(self):
+        mcu_clock, chip_clock = self._tle5012b_query_clock()
+        mdiff = mcu_clock - self.last_chip_mcu_clock
+        chip_mclock = self.last_chip_clock + int(mdiff * self.chip_freq + .5)
+        cdiff = (chip_mclock - chip_clock) & 0xffff
+        cdiff -= (cdiff & 0x8000) << 1
+        new_chip_clock = chip_mclock - cdiff
+        self.chip_freq = float(new_chip_clock - self.last_chip_clock) / mdiff
+        self.last_chip_clock = new_chip_clock
+        self.last_chip_mcu_clock = mcu_clock
     def _tle5012b_init(self):
         # Clear any errors from device
-        self.spi.spi_transfer([0x80, 0x01, 0x00, 0x00, 0x00, 0x00]) # Read STAT
+        self._tle5012b_query([0x80, 0x01, 0x00, 0x00, 0x00, 0x00]) # Read STAT
+        # Setup starting clock values
+        mcu_clock, chip_clock = self._tle5012b_query_clock()
+        self.last_chip_clock = chip_clock
+        self.last_chip_mcu_clock = mcu_clock
+        self.chip_freq = float(1<<5) / self.mcu.seconds_to_clock(1. / 750000.)
+        self._tle5012b_update_clock()
     # API interface
     def _api_update(self, eventtime):
+        if self.sensor_type == "tle5012b":
+            self._tle5012b_update_clock()
         with self.lock:
             raw_samples = self.raw_samples
             self.raw_samples = []
@@ -404,6 +481,7 @@ class Angle:
         self.start_clock = 0
         with self.lock:
             self.raw_samples = []
+        self.last_temperature = None
         logging.info("Stopped angle '%s' measurements", self.name)
     def _api_startstop(self, is_start):
         if is_start:
