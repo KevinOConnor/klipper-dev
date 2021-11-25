@@ -138,6 +138,8 @@ class DataLogger:
         subreq = {o: None for o in msg["result"]["objects"]}
         self.send_subscribe("status", "objects/subscribe", {"objects": subreq},
                             self.handle_subscribe, self.handle_async_db)
+        self.send_subscribe("motan_log", "register_remote_method",
+                            {"remote_method": "motan_log"})
     def handle_subscribe(self, msg, raw_msg):
         result = msg["result"]
         self.next_index_time = result["eventtime"] + INDEX_UPDATE_TIME
