@@ -529,6 +529,14 @@ class TrackStatus:
             th = self.next_update.get('toolhead', {})
             self.next_status_time = th.get('estimated_print_time', 0.)
 
+# Tracking of motan_log messages
+class TrackLogMessages:
+    def __init__(self, lmanager, name):
+        self.name = name
+        self.jdispatch = lmanager.get_jdispatch()
+    def pull_next(self, min_time, max_time):
+        return self.jdispatch.pull_msg(max_time, self.name)
+
 # Split a string by commas while keeping parenthesis intact
 def param_split(line):
     out = []
@@ -569,7 +577,7 @@ class LogManager:
         self.initial_status = {}
         self.start_status = {}
         self.log_subscriptions = {}
-        self.status_tracker = None
+        self.status_tracker = self.logmsg_tracker = None
     def setup_index(self):
         fmsg = self.index_reader.pull_msg()
         self.initial_status = status = fmsg['status']
@@ -610,6 +618,11 @@ class LogManager:
             self.status_tracker = TrackStatus(self, "status", self.start_status)
             self.jdispatch.add_handler("status", "status")
         return self.status_tracker
+    def get_logmsg_tracker(self):
+        if self.logmsg_tracker is None:
+            self.logmsg_tracker = TrackLogMessages(self, "motan_log")
+            self.jdispatch.add_handler("motan_log", "motan_log")
+        return self.logmsg_tracker
     def setup_dataset(self, name):
         if name in self.datasets:
             return self.datasets[name]
