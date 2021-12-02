@@ -253,7 +253,7 @@ class HandleStepPhase:
             raise error("Unknown step_phase selection '%s'" % (name_parts[2],))
         self.report_microsteps = len(name_parts) == 3
         sconfig = config[self.stepper_name]
-        self.phases = sconfig["microsteps"]
+        self.microsteps = self.phases = sconfig["microsteps"]
         if not self.report_microsteps:
             self.phases *= 4
         self.jdispatch = lmanager.get_jdispatch()
@@ -270,12 +270,36 @@ class HandleStepPhase:
             return {'label': '%s microstep' % (self.stepper_name,),
                     'units': 'Microstep'}
         return {'label': '%s phase' % (self.stepper_name,), 'units': 'Phase'}
+    def get_microsteps(self):
+        return self.microsteps
     def _pull_phase_offset(self, req_time):
         db, self.next_status_time = self.status_tracker.pull_status(req_time)
         mcu_phase_offset = db.get(self.driver_name, {}).get('mcu_phase_offset')
         if mcu_phase_offset is None:
             mcu_phase_offset = 0
         self.mcu_phase_offset = mcu_phase_offset
+    def pull_next(self, min_time, max_time):
+        while 1:
+            data_pos = self.data_pos
+            step_data = self.step_data
+            # Find steps before and after req_time
+            if data_pos >= len(step_data):
+                self._pull_block(min_time)
+                continue
+            next_time, next_pos = step_data[data_pos]
+            if min_time > next_time:
+                if data_pos + 1 < len(step_data):
+                    self.data_pos = data_pos + 1
+                    continue
+                self._pull_block(min_time)
+                continue
+            if max_time < next_time:
+                return None
+            if next_time >= self.next_status_time:
+                self._pull_phase_offset(next_time)
+            step_pos = (next_pos - self.mcu_phase_offset) % self.phases
+            self.data_pos += 1
+            return (next_time, step_pos)
     def pull_data(self, req_time):
         if req_time >= self.next_status_time:
             self._pull_phase_offset(req_time)
