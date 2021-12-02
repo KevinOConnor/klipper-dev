@@ -226,7 +226,7 @@ class AnalyzerManager:
         self.raw_datasets = collections.OrderedDict()
         self.gen_datasets = collections.OrderedDict()
         self.datasets = {}
-        self.dataset_times = []
+        self.dataset_times = None
         self.duration = 5.
     def set_duration(self, duration):
         self.duration = duration
@@ -234,7 +234,17 @@ class AnalyzerManager:
         return self.segment_time
     def get_datasets(self):
         return self.datasets
+    def set_dataset_times(self, dataset_times):
+        self.dataset_times = dataset_times
     def get_dataset_times(self):
+        if self.dataset_times is not None:
+            return self.dataset_times
+        initial_start_time = self.lmanager.get_initial_start_time()
+        start_time = self.lmanager.get_start_time()
+        time_delta = start_time - initial_start_time
+        count = int(self.duration / self.segment_time)
+        self.dataset_times = [time_delta + i * self.segment_time
+                              for i in range(count)]
         return self.dataset_times
     def get_initial_status(self):
         return self.lmanager.get_initial_status()
@@ -271,13 +281,10 @@ class AnalyzerManager:
         list_hdls = [(self.datasets[name], hdl)
                      for name, hdl in self.raw_datasets.items()]
         initial_start_time = self.lmanager.get_initial_start_time()
-        start_time = t = self.lmanager.get_start_time()
-        end_time = start_time + self.duration
-        while t < end_time:
-            t += self.segment_time
-            self.dataset_times.append(t - initial_start_time)
+        dataset_times = self.get_dataset_times()
+        for t in dataset_times:
             for dl, hdl in list_hdls:
-                dl.append(hdl.pull_data(t))
+                dl.append(hdl.pull_data(t + initial_start_time))
         # Generate analyzer data
         for name, hdl in self.gen_datasets.items():
             self.datasets[name] = hdl.generate_data()
