@@ -9,7 +9,6 @@ import matplotlib
 import motan_graph, readlog, analyzers
 
 # Todo:
-# - separate forward motion buckets from reverse motion buckets
 # - support graphs from multiple logs?
 # - write testing macros?
 #   - impact of microstep setting?
@@ -97,7 +96,9 @@ def plot_phases(datasets, amanager, graphs, log_prefix):
                                            sharex='all', sharey='row')
     if len(graphs) == 1:
         rows = [rows]
-    #rows[0].set_title("Motion Analysis (%s)" % (log_prefix,))
+    fig.suptitle("Motion Analysis (%s)" % (log_prefix,))
+    rows[0][0].set_title("Forward")
+    rows[0][1].set_title("Reverse")
     for graph, (graph_fwd_ax, graph_rev_ax) in zip(graphs, rows):
         for dataset, plot_params in graph:
             label = amanager.get_label(dataset)
@@ -141,17 +142,34 @@ def main():
     # Parse command-line arguments
     usage = "%prog [options] <logname>"
     opts = optparse.OptionParser(usage)
-    opts.add_option("-o", "--output", type="string", dest="output",
-                    default=None, help="filename of output graph")
+    opts.add_option("-o", "--output", type="string",
+                    help="filename of output graph")
+    opts.add_option("-m", "--motor", type="string",
+                    help="stepper motor to analyze")
+    opts.add_option("-r", "--ranges", type="string",
+                    help="time ranges to analyze")
+    opts.add_option("-g", "--graph", help="Graph to generate (python literal)")
     options, args = opts.parse_args()
     if len(args) != 1:
         opts.error("Incorrect number of arguments")
     log_prefix = args[0]
 
     # Scan the log for start/end ranges embedded in "motan_log" messages
-    stepper_driver, scan_ranges = scan_log_messages(log_prefix)
-    if not scan_ranges or stepper_driver is None:
-        raise Exception("No valid scan ranges found in log file")
+    if options.motor is not None:
+        stepper_driver = options.motor
+        scan_ranges = [[0., 5., "?"]]
+        if options.ranges is not None:
+            scan_ranges = ast.literal_eval(options.ranges)
+        dummy_lmanager = readlog.LogManager(log_prefix)
+        dummy_lmanager.setup_index()
+        for i, (start, end, name) in enumerate(scan_ranges):
+            start += dummy_lmanager.get_initial_start_time()
+            end += dummy_lmanager.get_initial_start_time()
+            scan_ranges[i] = (start, end, name)
+    else:
+        stepper_driver, scan_ranges = scan_log_messages(log_prefix)
+        if not scan_ranges or stepper_driver is None:
+            raise Exception("No valid scan ranges found in log file")
     abs_start = scan_ranges[0][0]
 
     # Open data files
@@ -164,6 +182,8 @@ def main():
         ["adxl345(adxl345,x)"],
         ["deviation(angle(angle_x),stepq(stepper_x))"],
     ]
+    if options.graph is not None:
+        graph_descs = ast.literal_eval(options.graph)
     graphs = [[motan_graph.parse_graph_description(g) for g in graph_row]
               for graph_row in graph_descs]
 
