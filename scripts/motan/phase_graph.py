@@ -107,9 +107,9 @@ def plot_phases(datasets, amanager, graphs, log_prefix):
                 pparams = {'label': "%s at %s" % (label['label'], run_name),
                            'alpha': 0.8}
                 pparams.update(plot_params)
-                graph_fwd_ax.plot(phases, datasets[(run_name, dataset)][0],
+                graph_fwd_ax.plot(phases, datasets[(run_name, dataset)][1],
                                   **pparams)
-                graph_rev_ax.plot(phases, datasets[(run_name, dataset)][1],
+                graph_rev_ax.plot(phases, datasets[(run_name, dataset)][0],
                                   **pparams)
         graph_rev_ax.legend(loc='best', prop=fontP)
         graph_fwd_ax.grid(True)
