@@ -74,6 +74,9 @@ def plot_steps(data, oid, skip, diff_level):
             ax3.step(xaxis[2:len(diff)+2], diff, label=logname, alpha=0.8)
         else:
             ax3.step(xaxis[2:], adds, label=logname, alpha=0.8)
+    if ax2.get_ylim()[1] > 60000: ax2.set_ylim((0, 60000))
+    if ax3.get_ylim()[0] < -10000: ax3.set_ylim((-10000, ax3.get_ylim()[1]))
+    if ax3.get_ylim()[1] > 10000: ax3.set_ylim((ax3.get_ylim()[0], 10000))
     fontP = matplotlib.font_manager.FontProperties()
     fontP.set_size('x-small')
     ax1.set_title("Steps (oid=%d)" % (oid,))
