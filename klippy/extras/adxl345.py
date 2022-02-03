@@ -1,9 +1,9 @@
 # Support for reading acceleration data from an adxl345 chip
 #
-# Copyright (C) 2020-2021  Kevin O'Connor <kevin@koconnor.net>
+# Copyright (C) 2020-2022  Kevin O'Connor <kevin@koconnor.net>
 #
 # This file may be distributed under the terms of the GNU GPLv3 license.
-import logging, time, collections, threading, multiprocessing, os
+import logging, time, collections, threading, multiprocessing, os, math
 from . import bus, motion_report
 
 # ADXL345 registers
@@ -99,6 +99,100 @@ class ADXL345QueryHelper:
         write_proc = multiprocessing.Process(target=write_impl)
         write_proc.daemon = True
         write_proc.start()
+
+# Helper class for calibration
+class ADXLCalibrateHelper:
+    def __init__(self, config, chip):
+        self.printer = config.get_printer()
+        self.chip = chip
+        self.name = config.get_name().split()[-1]
+        gcode = self.printer.lookup_object('gcode')
+        gcode.register_mux_command("ACCELEROMETER_CALIBRATE", "CHIP", self.name,
+                                   self.cmd_ACCELEROMETER_CALIBRATE,
+                                   desc=self.cmd_ACCELEROMETER_CALIBRATE_help)
+    def index_samples(self, samples, times):
+        out = []
+        len_samples = len(samples)
+        spos = start_spos = tpos = 0
+        while spos < len_samples:
+            sample_time = samples[spos].time
+            if sample_time >= times[tpos]:
+                out.append((times[tpos], start_spos, spos))
+                start_spos = spos + 1
+                tpos += 1
+                if tpos > len(times):
+                    break
+            spos += 1
+        return out
+    def calc_calibration(self, client, times, distance, axis_id):
+        # Determine samples for each test
+        samples = client.get_samples()
+        sindex = self.index_samples(samples, times)
+        # Analyze each test result
+        for test_num, (end_time, start_spos, end_spos) in enumerate(sindex):
+            # Calculate adxl axis bias knowing start and end velocity is zero
+            velocity_x = velocity_y = velocity_z = 0.
+            last = samples[start_spos]
+            for i in range(start_spos+1, end_spos+1):
+                sample = samples[i]
+                time_diff = sample.time - last.time
+                velocity_x += time_diff * .5 * (sample[1] + last[1])
+                velocity_y += time_diff * .5 * (sample[2] + last[2])
+                velocity_z += time_diff * .5 * (sample[3] + last[3])
+                last = sample
+            total_time = samples[end_spos].time - samples[start_spos].time
+            inv_total_time = 1. / total_time
+            bias_x = velocity_x * inv_total_time
+            bias_y = velocity_y * inv_total_time
+            bias_z = velocity_z * inv_total_time
+            # Calculate measured distance via accelerometer
+            pos_x = pos_y = pos_z = 0.
+            velocity_x = velocity_y = velocity_z = 0.
+            last = samples[start_spos]
+            for i in range(start_spos+1, end_spos+1):
+                sample = samples[i]
+                time_diff = sample.time - last.time
+                pvx, pvy, pvz = velocity_x, velocity_y, velocity_z
+                velocity_x += time_diff * (.5 * (sample[1] + last[1]) - bias_x)
+                velocity_y += time_diff * (.5 * (sample[2] + last[2]) - bias_y)
+                velocity_z += time_diff * (.5 * (sample[3] + last[3]) - bias_z)
+                pos_x += time_diff * .5 * (velocity_x + pvx)
+                pos_y += time_diff * .5 * (velocity_y + pvy)
+                pos_z += time_diff * .5 * (velocity_z + pvz)
+                last = sample
+            dist = math.sqrt(pos_x**2 + pos_y**2 + pos_z**2)
+            # XXX - report results
+            gcode = self.printer.lookup_object('gcode')
+            gcode.respond_info("%d: b=%.3f,%.3f,%.3f p=%.3f,%.3f,%.3f d=%.3f"
+                               % (test_num, bias_x, bias_y, bias_z,
+                                  pos_x, pos_y, pos_z, dist))
+    def do_calibration(self, distance, velocity, axis_id):
+        toolhead = self.printer.lookup_object('toolhead')
+        startpos = toolhead.get_position()
+        endpos = list(startpos)
+        endpos[axis_id] += distance
+        # Begin measurements
+        client = self.chip.start_internal_client()
+        toolhead.dwell(1.)
+        times = [toolhead.get_last_move_time()]
+        # Perform movement
+        for i in range(6):
+            nextpos = [endpos, startpos][i & 1]
+            toolhead.manual_move(nextpos, velocity)
+            toolhead.dwell(1.)
+            times.append(toolhead.get_last_move_time())
+        # Finalize measurements and process calibration
+        client.finish_measurements()
+        self.calc_calibration(client, times, distance, axis_id)
+    cmd_ACCELEROMETER_CALIBRATE_help = "Tool to calibrate adxl345"
+    def cmd_ACCELEROMETER_CALIBRATE(self, gcmd):
+        distance = gcmd.get_float("DISTANCE", above=0.)
+        velocity = gcmd.get_float("VELOCITY", above=0.)
+        axis = gcmd.get("AXIS").upper()
+        if axis not in 'XYZ':
+            raise gcmd.error("Invalid axis")
+        axis_id = "XYZ".index(axis)
+        self.do_calibration(distance, velocity, axis_id)
 
 # Helper class for G-Code commands
 class ADXLCommandHelper:
@@ -228,6 +322,7 @@ class ADXL345:
         self.printer = config.get_printer()
         ADXLCommandHelper(config, self)
         self.query_rate = 0
+        self.calibrate = ADXLCalibrateHelper(config, self)
         am = {'x': (0, SCALE), 'y': (1, SCALE), 'z': (2, SCALE),
               '-x': (0, -SCALE), '-y': (1, -SCALE), '-z': (2, -SCALE)}
         axes_map = config.getlist('axes_map', ('x','y','z'), count=3)
