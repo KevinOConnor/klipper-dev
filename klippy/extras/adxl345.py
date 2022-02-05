@@ -187,7 +187,7 @@ class ADXLCalibrateHelper:
         for i in range(6):
             nextpos = [endpos, startpos][i & 1]
             toolhead.manual_move(nextpos, velocity)
-            toolhead.dwell(1.)
+            toolhead.dwell(.100)
             times.append(toolhead.get_last_move_time())
         toolhead.wait_moves()
         # Restore acceleration
