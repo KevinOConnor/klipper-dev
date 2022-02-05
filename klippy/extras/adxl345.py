@@ -120,10 +120,10 @@ class ADXLCalibrateHelper:
                 out.append((times[tpos], start_spos, spos))
                 start_spos = spos + 1
                 tpos += 1
-                if tpos > len(times):
+                if tpos >= len(times):
                     break
             spos += 1
-        return out
+        return out[1:]
     def calc_calibration(self, client, times, distance, axis_id):
         # Determine samples for each test
         samples = client.get_samples()
@@ -181,6 +181,7 @@ class ADXLCalibrateHelper:
             toolhead.manual_move(nextpos, velocity)
             toolhead.dwell(1.)
             times.append(toolhead.get_last_move_time())
+        toolhead.wait_moves()
         # Finalize measurements and process calibration
         client.finish_measurements()
         self.calc_calibration(client, times, distance, axis_id)
