@@ -171,6 +171,14 @@ class ADXLCalibrateHelper:
         startpos = toolhead.get_position()
         endpos = list(startpos)
         endpos[axis_id] += distance
+        # Setup acceleration
+        systime = self.printer.get_reactor().monotonic()
+        toolhead_info = toolhead.get_status(systime)
+        new_max_accel = velocity**2 / distance
+        gcode = self.printer.lookup_object('gcode')
+        gcode.run_script_from_command(
+            "SET_VELOCITY_LIMIT ACCEL=%.3f ACCEL_TO_DECEL=%.3f"
+            % (new_max_accel, new_max_accel))
         # Begin measurements
         client = self.chip.start_internal_client()
         toolhead.dwell(1.)
@@ -182,6 +190,10 @@ class ADXLCalibrateHelper:
             toolhead.dwell(1.)
             times.append(toolhead.get_last_move_time())
         toolhead.wait_moves()
+        # Restore acceleration
+        gcode.run_script_from_command(
+            "SET_VELOCITY_LIMIT ACCEL=%.3f ACCEL_TO_DECEL=%.3f"
+            % (toolhead_info['max_accel'], toolhead_info['max_accel_to_decel']))
         # Finalize measurements and process calibration
         client.finish_measurements()
         self.calc_calibration(client, times, distance, axis_id)
