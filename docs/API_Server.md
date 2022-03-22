@@ -246,6 +246,15 @@ significant (eg, if a G-Code wait for temperature command is running).
 The JSON response message is sent when the processing of the script
 fully completes.
 
+### gcode/cancel
+
+This endpoint will request all pending G-Code commands to exit early
+with an error report. For example:
+`{"id": 123, "method": "gcode/cancel"}`
+
+This command completes after all pending G-Code commands are aborted.
+The delay may be significant if a command can not be canceled.
+
 ### gcode/restart
 
 This endpoint allows one to request a restart - it is similar to

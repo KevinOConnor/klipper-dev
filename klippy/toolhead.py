@@ -376,6 +376,7 @@ class ToolHead:
             if not self.can_pause:
                 self.need_check_stall = self.reactor.NEVER
                 return
+            self.printer.lookup_object("gcode").check_long_running()
             eventtime = self.reactor.pause(eventtime + min(1., stall_time))
         if not self.special_queuing_state:
             # In main state - defer stall checking until needed
@@ -432,11 +433,13 @@ class ToolHead:
         self._check_stall()
     def wait_moves(self):
         self._flush_lookahead()
+        gcode = self.printer.lookup_object("gcode")
         eventtime = self.reactor.monotonic()
         while (not self.special_queuing_state
                or self.print_time >= self.mcu.estimated_print_time(eventtime)):
             if not self.can_pause:
                 break
+            gcode.check_long_running()
             eventtime = self.reactor.pause(eventtime + 0.100)
     def set_extruder(self, extruder, extrude_pos):
         self.extruder = extruder
@@ -459,6 +462,7 @@ class ToolHead:
             npt = min(self.print_time + DRIP_SEGMENT_TIME, next_print_time)
             self._update_move_time(npt)
     def drip_move(self, newpos, speed, drip_completion):
+        self.printer.lookup_object("gcode").check_long_running()
         self.dwell(self.kin_flush_delay)
         # Transition from "Flushed"/"Priming"/main state to "Drip" state
         self.move_queue.flush()

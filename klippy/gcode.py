@@ -20,6 +20,7 @@ class GCodeCommand:
         # Method wrappers
         self.respond_info = gcode.respond_info
         self.respond_raw = gcode.respond_raw
+        self.check_long_running = gcode.check_long_running
     def get_command(self):
         return self._command
     def get_commandline(self):
@@ -97,7 +98,7 @@ class GCodeDispatch:
         printer.register_event_handler("klippy:disconnect",
                                        self._handle_disconnect)
         # Command handling
-        self.is_printer_ready = False
+        self.is_printer_ready = self.is_cancel = False
         self.mutex = printer.get_reactor().mutex()
         self.output_callbacks = []
         self.base_gcode_handlers = self.gcode_handlers = {}
@@ -214,6 +215,21 @@ class GCodeDispatch:
     def run_script(self, script):
         with self.mutex:
             self._process_commands(script.split('\n'), need_ack=False)
+    def check_long_running(self):
+        if not self.is_printer_ready:
+            raise self.error("Command failed due to shutdown")
+        if self.is_cancel:
+            raise self.error("Command failed due to gcode cancel request")
+    def invoke_cancel(self):
+        if self.is_cancel or not self.is_printer_ready:
+            return
+        self.is_cancel = True
+        self.gcode_handlers = self.base_gcode_handlers
+        self.printer.send_event("gcode:cancel")
+        with self.mutex:
+            self.is_cancel = False
+            if self.is_printer_ready:
+                self.gcode_handlers = self.ready_gcode_handlers
     def get_mutex(self):
         return self.mutex
     def create_gcode_command(self, command, commandline, params):
@@ -270,7 +286,8 @@ class GCodeDispatch:
             return
         if not self.is_printer_ready:
             raise gcmd.error(self.printer.get_state_message()[0])
-            return
+        if self.is_cancel and cmd in self.ready_gcode_handlers:
+            raise gcmd.error("Command failed due to gcode cancel request")
         if not cmd:
             cmdline = gcmd.get_commandline()
             if cmdline:
