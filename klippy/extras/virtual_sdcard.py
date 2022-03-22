@@ -10,7 +10,8 @@ VALID_GCODE_EXTS = ['gcode', 'g', 'gco']
 class VirtualSD:
     def __init__(self, config):
         printer = config.get_printer()
-        printer.register_event_handler("klippy:shutdown", self.handle_shutdown)
+        printer.register_event_handler("klippy:shutdown", self._handle_shutdown)
+        printer.register_event_handler("gcode:cancel", self._handle_cancel)
         # sdcard state
         sd = config.get('path')
         self.sdcard_dirname = os.path.normpath(os.path.expanduser(sd))
@@ -35,7 +36,7 @@ class VirtualSD:
         self.gcode.register_command(
             "SDCARD_PRINT_FILE", self.cmd_SDCARD_PRINT_FILE,
             desc=self.cmd_SDCARD_PRINT_FILE_help)
-    def handle_shutdown(self):
+    def _handle_shutdown(self):
         if self.work_timer is not None:
             self.must_pause_work = True
             try:
@@ -49,6 +50,9 @@ class VirtualSD:
             logging.info("Virtual sdcard (%d): %s\nUpcoming (%d): %s",
                          readpos, repr(data[:readcount]),
                          self.file_position, repr(data[readcount:]))
+    def _handle_cancel(self):
+        if self.work_timer is not None:
+            self.must_pause_work = True
     def stats(self, eventtime):
         if self.work_timer is None:
             return False, ""
