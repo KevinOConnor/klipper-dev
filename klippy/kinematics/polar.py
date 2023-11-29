@@ -21,7 +21,7 @@ class PolarKinematics:
                                           for s in r.get_steppers() ]
         for s in self.get_steppers():
             s.set_trapq(toolhead.get_trapq())
-            toolhead.register_step_generator(s.generate_steps)
+            toolhead.register_stepper(s)
         config.get_printer().register_event_handler("stepper_enable:motor_off",
                                                     self._motor_off)
         # Setup boundary checks

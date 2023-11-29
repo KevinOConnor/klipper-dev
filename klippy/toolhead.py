@@ -239,6 +239,7 @@ class ToolHead:
         self.flush_timer = self.reactor.register_timer(self._flush_handler)
         self.do_kick_flush_timer = True
         self.last_flush_time = self.need_flush_time = 0.
+        self.kin_steppers = []
         # Kinematic step generation scan window time tracking
         self.kin_flush_delay = SDS_CHECK_TIME
         self.kin_flush_times = []
@@ -247,7 +248,6 @@ class ToolHead:
         self.trapq = ffi_main.gc(ffi_lib.trapq_alloc(), ffi_lib.trapq_free)
         self.trapq_append = ffi_lib.trapq_append
         self.trapq_finalize_moves = ffi_lib.trapq_finalize_moves
-        self.step_generators = []
         # Create kinematics class
         gcode = self.printer.lookup_object('gcode')
         self.Coord = gcode.Coord
@@ -284,8 +284,8 @@ class ToolHead:
         # Generate steps via itersolve
         sg_flush_ceil = max(flush_time, self.print_time - self.kin_flush_delay)
         sg_flush_time = min(flush_time + STEPCOMPRESS_FLUSH_TIME, sg_flush_ceil)
-        for sg in self.step_generators:
-            sg(sg_flush_time)
+        for s in self.kin_steppers:
+            s.generate_steps(sg_flush_time)
         # Free trapq entries that are no longer needed
         free_time = sg_flush_time - self.kin_flush_delay
         self.trapq_finalize_moves(self.trapq, free_time)
@@ -557,8 +557,8 @@ class ToolHead:
         return self.kin
     def get_trapq(self):
         return self.trapq
-    def register_step_generator(self, handler):
-        self.step_generators.append(handler)
+    def register_stepper(self, stepper):
+        self.kin_steppers.append(stepper)
     def note_step_generation_scan_time(self, delay, old_delay=0.):
         self.flush_step_generation()
         cur_delay = self.kin_flush_delay

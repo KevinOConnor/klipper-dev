@@ -42,7 +42,7 @@ class HybridCoreXZKinematics:
                     dc_config, dc_rail_0, dc_rail_1, axis=0)
         for s in self.get_steppers():
             s.set_trapq(toolhead.get_trapq())
-            toolhead.register_step_generator(s.generate_steps)
+            toolhead.register_stepper(s)
         self.printer.register_event_handler("stepper_enable:motor_off",
                                                     self._motor_off)
         # Setup boundary checks
