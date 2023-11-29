@@ -241,7 +241,7 @@ class ToolHead:
         self.last_flush_time = self.need_flush_time = 0.
         self.kin_steppers = []
         # Kinematic step generation scan window time tracking
-        self.kin_flush_delay = SDS_CHECK_TIME
+        self.gen_steps_pre_active = self.gen_steps_post_active = 0.
         self.need_check_steppers = True
         # Setup iterative solver
         ffi_main, ffi_lib = chelper.get_ffi()
@@ -282,12 +282,13 @@ class ToolHead:
     def _advance_flush_time(self, flush_time):
         flush_time = max(flush_time, self.last_flush_time)
         # Generate steps via itersolve
-        sg_flush_ceil = max(flush_time, self.print_time - self.kin_flush_delay)
+        sg_flush_ceil = max(flush_time,
+                            self.print_time - self.gen_steps_pre_active)
         sg_flush_time = min(flush_time + STEPCOMPRESS_FLUSH_TIME, sg_flush_ceil)
         for s in self.kin_steppers:
             s.generate_steps(sg_flush_time)
         # Free trapq entries that are no longer needed
-        free_time = sg_flush_time - self.kin_flush_delay
+        free_time = sg_flush_time - self.gen_steps_post_active
         self.trapq_finalize_moves(self.trapq, free_time)
         self.extruder.update_move_time(free_time)
         # Flush stepcompress and mcu steppersync
@@ -295,7 +296,7 @@ class ToolHead:
             m.flush_moves(flush_time)
         self.last_flush_time = flush_time
     def _advance_move_time(self, next_print_time):
-        pt_delay = self.kin_flush_delay + STEPCOMPRESS_FLUSH_TIME
+        pt_delay = self.gen_steps_pre_active + STEPCOMPRESS_FLUSH_TIME
         flush_time = max(self.last_flush_time, self.print_time - pt_delay)
         self.print_time = max(self.print_time, next_print_time)
         want_flush_time = max(flush_time, self.print_time - pt_delay)
@@ -310,7 +311,7 @@ class ToolHead:
         curtime = self.reactor.monotonic()
         est_print_time = self.mcu.estimated_print_time(curtime)
         kin_time = max(est_print_time + MIN_KIN_TIME, self.last_flush_time)
-        kin_time += self.kin_flush_delay
+        kin_time += self.gen_steps_pre_active
         min_print_time = max(est_print_time + BUFFER_TIME_START, kin_time)
         if min_print_time > self.print_time:
             self.print_time = min_print_time
@@ -343,7 +344,8 @@ class ToolHead:
         # Generate steps for moves
         if self.special_queuing_state:
             self._update_drip_move_time(next_move_time)
-        self.note_kinematic_activity(next_move_time + self.kin_flush_delay)
+        self.note_kinematic_activity(next_move_time
+                                     + self.gen_steps_post_active)
         self._advance_move_time(next_move_time)
     def _flush_lookahead(self):
         # Transit from "NeedPrime"/"Priming"/"Drip"/main state to "NeedPrime"
@@ -436,11 +438,14 @@ class ToolHead:
         return self.reactor.NEVER
     def _check_steppers(self):
         # Determine flush delay needed for stepper scan windows
-        kin_flush_delay = SDS_CHECK_TIME
+        gen_steps_pre_active = SDS_CHECK_TIME
+        gen_steps_post_active = 0.
         for s in self.kin_steppers:
             pre_active, post_active = s.get_gen_steps_window()
-            kin_flush_delay = max(kin_flush_delay, pre_active, post_active)
-        self.kin_flush_delay = kin_flush_delay
+            gen_steps_pre_active = max(gen_steps_pre_active, pre_active)
+            gen_steps_post_active = max(gen_steps_post_active, post_active)
+        self.gen_steps_pre_active = gen_steps_pre_active
+        self.gen_steps_post_active = gen_steps_post_active
     # Movement commands
     def get_position(self):
         return list(self.commanded_pos)
@@ -490,7 +495,8 @@ class ToolHead:
         return self.extruder
     # Homing "drip move" handling
     def _update_drip_move_time(self, next_print_time):
-        flush_delay = DRIP_TIME + STEPCOMPRESS_FLUSH_TIME + self.kin_flush_delay
+        flush_delay = (DRIP_TIME + STEPCOMPRESS_FLUSH_TIME
+                       + self.gen_steps_pre_active)
         while self.print_time < next_print_time:
             if self.drip_completion.test():
                 raise DripModeEndSignal()
@@ -502,10 +508,10 @@ class ToolHead:
                 self.drip_completion.wait(curtime + wait_time)
                 continue
             npt = min(self.print_time + DRIP_SEGMENT_TIME, next_print_time)
-            self.note_kinematic_activity(npt + self.kin_flush_delay)
+            self.note_kinematic_activity(npt + self.gen_steps_post_active)
             self._advance_move_time(npt)
     def drip_move(self, newpos, speed, drip_completion):
-        self.dwell(self.kin_flush_delay)
+        self.dwell(self.gen_steps_pre_active)
         # Transition from "NeedPrime"/"Priming"/main state to "Drip" state
         self.move_queue.flush()
         self.special_queuing_state = "Drip"
