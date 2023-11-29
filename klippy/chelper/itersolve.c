@@ -278,3 +278,15 @@ itersolve_get_commanded_pos(struct stepper_kinematics *sk)
 {
     return sk->commanded_pos;
 }
+
+double __visible
+itersolve_get_gen_steps_pre_active(struct stepper_kinematics *sk)
+{
+    return sk->gen_steps_pre_active;
+}
+
+double __visible
+itersolve_get_gen_steps_post_active(struct stepper_kinematics *sk)
+{
+    return sk->gen_steps_post_active;
+}

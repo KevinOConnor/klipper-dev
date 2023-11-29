@@ -242,7 +242,7 @@ class ToolHead:
         self.kin_steppers = []
         # Kinematic step generation scan window time tracking
         self.kin_flush_delay = SDS_CHECK_TIME
-        self.kin_flush_times = []
+        self.need_check_steppers = True
         # Setup iterative solver
         ffi_main, ffi_lib = chelper.get_ffi()
         self.trapq = ffi_main.gc(ffi_lib.trapq_alloc(), ffi_lib.trapq_free)
@@ -305,6 +305,8 @@ class ToolHead:
             if flush_time >= want_flush_time:
                 break
     def _calc_print_time(self):
+        if self.need_check_steppers:
+            self._check_steppers()
         curtime = self.reactor.monotonic()
         est_print_time = self.mcu.estimated_print_time(curtime)
         kin_time = max(est_print_time + MIN_KIN_TIME, self.last_flush_time)
@@ -353,6 +355,7 @@ class ToolHead:
     def flush_step_generation(self):
         self._flush_lookahead()
         self._advance_flush_time(self.need_flush_time)
+        self.need_check_steppers = True
     def get_last_move_time(self):
         if self.special_queuing_state:
             self._flush_lookahead()
@@ -431,6 +434,13 @@ class ToolHead:
             logging.exception("Exception in flush_handler")
             self.printer.invoke_shutdown("Exception in flush_handler")
         return self.reactor.NEVER
+    def _check_steppers(self):
+        # Determine flush delay needed for stepper scan windows
+        kin_flush_delay = SDS_CHECK_TIME
+        for s in self.kin_steppers:
+            pre_active, post_active = s.get_gen_steps_window()
+            kin_flush_delay = max(kin_flush_delay, pre_active, post_active)
+        self.kin_flush_delay = kin_flush_delay
     # Movement commands
     def get_position(self):
         return list(self.commanded_pos)
@@ -559,15 +569,6 @@ class ToolHead:
         return self.trapq
     def register_stepper(self, stepper):
         self.kin_steppers.append(stepper)
-    def note_step_generation_scan_time(self, delay, old_delay=0.):
-        self.flush_step_generation()
-        cur_delay = self.kin_flush_delay
-        if old_delay:
-            self.kin_flush_times.pop(self.kin_flush_times.index(old_delay))
-        if delay:
-            self.kin_flush_times.append(delay)
-        new_delay = max(self.kin_flush_times + [SDS_CHECK_TIME])
-        self.kin_flush_delay = new_delay
     def register_lookahead_callback(self, callback):
         last_move = self.move_queue.get_last()
         if last_move is None:
