@@ -4666,6 +4666,41 @@ cs_pin:
 #   above parameters.
 ```
 
+### [sensor_debug]
+
+Tool for reading/writing to external I2C and SPI devices for debugging
+purposes (one may define any number of sections starting with a
+"sensor_debug" prefix).
+
+For I2C devices use:
+```
+[angle my_angle_sensor]
+i2c_address:
+#i2c_mcu:
+#i2c_bus:
+#i2c_software_scl_pin:
+#i2c_software_sda_pin:
+#i2c_speed:
+#   See the "common I2C settings" section for a description of the
+#   above parameters.
+```
+
+For SPI devices use:
+```
+[angle my_angle_sensor]
+spi_mode:
+#   The SPI mode to use when communicating with the device (valid
+#   values are 0, 1, 2, 3). This parameter must be specified if
+#   communicating with an SPI device.
+#spi_speed:
+#spi_bus:
+#spi_software_sclk_pin:
+#spi_software_mosi_pin:
+#spi_software_miso_pin:
+#   See the "common SPI settings" section for a description of the
+#   above parameters.
+```
+
 ## Common bus parameters
 
 ### Common SPI settings

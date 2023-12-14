@@ -1137,6 +1137,20 @@ indefinitely.
 `SDCARD_LOOP_DESIST`: Complete existing loops without further
 iterations.
 
+### [sensor_debug]
+
+The following commands are available when the
+[sensor_debug config section](Config_Reference.md#sensor_debug)
+is enabled.
+
+#### SENSOR_DEBUG
+`SENSOR_DEBUG CHIP=<config_name> [WRITE=<hexstr>] [READ=<number>]`:
+Send the given WRITE string (which is specified as a hexadecimal
+string - for example `WRITE=010A02`) to the device. If the device is
+an I2C device, then one may specify also specify a READ parameter,
+which specifies the number of bytes that should be read from the I2C
+device after writing the message specified in the WRITE parameter.
+
 ### [servo]
 
 The following commands are available when a
