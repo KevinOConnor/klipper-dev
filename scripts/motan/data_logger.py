@@ -151,11 +151,13 @@ class DataLogger:
             self.send_subscribe("stepq:" + stepper,
                                 "motion_report/dump_stepper", {"name": stepper})
         # Subscribe to additional sensor data
-        stypes = ["adxl345", "lis2dw", "mpu9250", "angle"]
+        stypes = ["adxl345", "lis2dw", "mpu9250", "angle", "ldc1612"]
+        stypes = {st:st for st in stypes}
+        stypes['eddy_probe'] = 'ldc1612'
         config = status["configfile"]["settings"]
         for cfgname in config.keys():
-            for st in stypes:
-                if cfgname == st or cfgname.startswith(st + " "):
+            for capprefix, st in sorted(stypes.items()):
+                if cfgname == capprefix or cfgname.startswith(capprefix + " "):
                     aname = cfgname.split()[-1]
                     lname = "%s:%s" % (st, aname)
                     qcmd = "%s/dump_%s" % (st, st)
