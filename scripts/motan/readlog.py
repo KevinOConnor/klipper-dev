@@ -215,7 +215,7 @@ class HandleStepQ:
         inv_freq = 0.
         if cdiff:
             inv_freq = tdiff / cdiff
-        step_dist = jmsg['step_distance']
+        step_dist = abs(jmsg['step_distance'])
         step_pos = jmsg['start_position']
         if not step_data[0][0]:
             step_data[0] = (0., step_pos, step_pos)
