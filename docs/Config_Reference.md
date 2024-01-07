@@ -4666,6 +4666,27 @@ cs_pin:
 #   above parameters.
 ```
 
+### [ldc1612]
+
+Support for ldc1612 eddy current sensors (one may define any number of
+sections with an "ldc1612" prefix).  The measurements are available
+via the [API Server](API_Server.md) and
+[motion analysis tool](Debugging.md#motion-analysis-and-data-logging).
+See the [G-Code reference](G-Codes.md#ldc1612) for available commands.
+
+```
+#i2c_address: 42
+#   The i2c address that the chip is using on the i2c bus. The default
+#   is 42.
+#i2c_mcu:
+#i2c_bus:
+#i2c_software_scl_pin:
+#i2c_software_sda_pin:
+#i2c_speed:
+#   See the "common I2C settings" section for a description of the
+#   above parameters.
+```
+
 ## Common bus parameters
 
 ### Common SPI settings

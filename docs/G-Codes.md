@@ -729,6 +729,20 @@ together with either of SHAPER_TYPE_X and SHAPER_TYPE_Y parameters.
 See [config reference](Config_Reference.md#input_shaper) for more
 details on each of these parameters.
 
+### [ldc1612]
+
+The following command is enabled if an
+[ldc1612 config section](Config_Reference.md#ldc1612) has been enabled
+
+#### LDC_CALIBRATE_DRIVE_CURRENT
+`LDC_CALIBRATE_DRIVE_CURRENT CHIP=<config_name>` This tool will
+calibrate the ldc1612 DRIVE_CURRENT0 register. Prior to using this
+tool, move the sensor so that it is near the center of the bed and
+about 20mm above the bed surface. Run this command to determine an
+appropriate DRIVE_CURRENT for the sensor. After running this command
+use the SAVE_CONFIG command to store that new setting in the
+printer.cfg config file.
+
 ### [manual_probe]
 
 The manual_probe module is automatically loaded.
