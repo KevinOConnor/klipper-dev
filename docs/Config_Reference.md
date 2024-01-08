@@ -1988,6 +1988,40 @@ z_offset:
 #   See the "probe" section for more information on the parameters above.
 ```
 
+### [eddy_probe]
+
+Support for eddy current inductive probes. One may define this section
+(instead of a probe section) to enable this probe. See the
+[command reference](G-Codes.md#eddy_probe) for further information.
+
+```
+[eddy_probe my_eddy_probe]
+sensor_type: ldc1612
+#   The sensor chip used to perform eddy current measurements. This
+#   parameter must be provided and must be set to ldc1612.
+#z_offset:
+#   The nominal distance (in mm) between the nozzle and bed that a
+#   probing attempt should stop at. This parameter must be provided.
+#i2c_address:
+#i2c_mcu:
+#i2c_bus:
+#i2c_software_scl_pin:
+#i2c_software_sda_pin:
+#i2c_speed:
+#   The i2c settings for the sensor chip. See the "common I2C
+#   settings" section for a description of the above parameters.
+#x_offset:
+#y_offset:
+#speed:
+#lift_speed:
+#samples:
+#sample_retract_dist:
+#samples_result:
+#samples_tolerance:
+#samples_tolerance_retries:
+#   See the "probe" section for information on these parameters.
+```
+
 ### [axis_twist_compensation]
 
 A tool to compensate for inaccurate probe readings due to twist in X gantry. See
@@ -4673,6 +4707,10 @@ sections with an "ldc1612" prefix).  The measurements are available
 via the [API Server](API_Server.md) and
 [motion analysis tool](Debugging.md#motion-analysis-and-data-logging).
 See the [G-Code reference](G-Codes.md#ldc1612) for available commands.
+
+Defining an ldc1612 config section enables reporting of the raw sensor
+values. Use an [eddy_probe config section](#eddy_probe) instead if the
+sensor is to be used for Z probing.
 
 ```
 #i2c_address: 42

@@ -349,6 +349,19 @@ use the rail homing speed. Note that the carriages restore their positions
 only over their own axis, which may be necessary to correctly restore COPY
 and MIRROR mode of the dual carraige.
 
+### [eddy_probe]
+
+The following commands are available when an
+[eddy_probe config section](Config_Reference.md#eddy_probe) is
+enabled.
+
+#### EDDY_PROBE_CALIBRATE
+`EDDY_PROBE_CALIBRATE CHIP=<config_name>`: This starts a tool that
+calibrates the sensor resonance frequencies to corresponding Z
+heights. The tool will take a couple of minutes to complete. After
+completion, use the SAVE_CONFIG command to store the results in the
+printer.cfg file.
+
 ### [endstop_phase]
 
 The following commands are available when an
