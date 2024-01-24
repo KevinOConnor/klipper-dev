@@ -17,7 +17,8 @@ class EddyCalibration:
         self.cal_zpos = []
         cal = config.get('calibrate', None)
         if cal is not None:
-            cal = [map(float, d.strip().split(':', 1)) for d in cal.split(',')]
+            cal = [list(map(float, d.strip().split(':', 1)))
+                   for d in cal.split(',')]
             self.load_calibration(cal)
         # Probe calibrate state
         self.probe_speed = 0.
