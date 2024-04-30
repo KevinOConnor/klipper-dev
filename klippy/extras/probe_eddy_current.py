@@ -86,10 +86,11 @@ class EddyCalibration:
             return True
         self.printer.lookup_object(self.name).add_client(handle_batch)
         toolhead.dwell(1.)
-        # Move to each 40um position
-        max_z = 4.0
-        samp_dist = 0.040
-        req_zpos = [i*samp_dist for i in range(int(max_z / samp_dist) + 1)]
+        # Move to each 40um and then each 5mm position
+        samp_dist1 = 0.040
+        samp_dist2 = 5.000
+        req_zpos = [i*samp_dist1 for i in range(int(4.0 / samp_dist1) + 1)]
+        req_zpos += [i*samp_dist2 for i in range(1, int(25.0 / samp_dist2) + 1)]
         start_pos = toolhead.get_position()
         times = []
         for zpos in req_zpos:
