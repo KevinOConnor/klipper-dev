@@ -102,6 +102,7 @@ class LDC1612:
             mcu.add_config_cmd("config_ldc1612 oid=%d i2c_oid=%d"
                                % (oid, self.i2c.get_oid()))
         factor = int((1. - HOMING_AVERAGE_WEIGHT) * EMA_BASE + 0.5)
+        factor = min(EMA_BASE - 1, max(0, factor))
         mcu.add_config_cmd("ldc1612_setup_averaging oid=%d factor=%d"
                            % (oid, factor))
         mcu.add_config_cmd("query_ldc1612 oid=%d rest_ticks=0"
@@ -153,6 +154,24 @@ class LDC1612:
         self.ldc1612_setup_home_cmd.send(
             [self.oid, clock, tfreq, trsync_oid, hit_reason, err_reason,
              0, 0, 0, 0])
+    def setup_tap(self, print_time, tap_time, pretap_freq,
+                  trsync_oid, hit_reason, err_reason,
+                  tap_threshold, tap_factor):
+        clock = self.mcu.print_time_to_clock(print_time)
+        tap_clock = self.mcu.print_time_to_clock(tap_time)
+        if tap_clock - clock >= 1<<31:
+            raise self.printer.command_error(
+                "ldc1612 tap time too far in future")
+        ptfreq = int(pretap_freq * (1<<28) / float(LDC1612_FREQ) + 0.5)
+        adj_factor = tap_factor / self.data_rate
+        tapfreq = -int(tap_threshold * adj_factor * (1<<28)
+                       / float(LDC1612_FREQ) + 0.5)
+        tfactor = int(adj_factor * (1<<32) + 0.5)
+        logging.info("ptf=%f/%d tt=%f/%d tf=%f/%d", pretap_freq, ptfreq,
+                     tap_threshold, tapfreq, tap_factor, tfactor)
+        self.ldc1612_setup_home_cmd.send(
+            [self.oid, clock, ptfreq, trsync_oid, hit_reason, err_reason,
+             tapfreq, tfactor, tap_clock, err_reason + 1])
     def clear_home(self):
         self.ldc1612_setup_home_cmd.send([self.oid, 0, 0, 0, 0, 0, 0, 0, 0, 0])
         if self.mcu.is_fileoutput():

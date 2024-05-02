@@ -2020,6 +2020,14 @@ sensor_type: ldc1612
 #z_offset:
 #   The nominal distance (in mm) between the nozzle and bed that a
 #   probing attempt should stop at. This parameter must be provided.
+#tap_height:
+#   Specify this parameter to enable probing until a nozzle contact
+#   with bed is detected. The parameter here specifies the minimum
+#   distance between bed and nozzle (in mm, as detected by the probe)
+#   for the probe to enable "tap" mode. If this parameter is specified
+#   and the toolhead starts a probe request while above this height
+#   (as detected by the probe) then an error will be reported. The
+#   default is to not perform "tap" based probing.
 #i2c_address:
 #i2c_mcu:
 #i2c_bus:

@@ -338,6 +338,10 @@ class ToolHead:
                 self.special_queuing_state = ""
                 self.need_check_pause = -1.
             self._calc_print_time()
+            if self.special_queuing_state == "Drip" and moves:
+                # XXX - mega hack
+                self.printer.send_event("toolhead:drip", self.print_time,
+                                        moves[0])
         # Queue moves into trapezoid motion queue (trapq)
         next_move_time = self.print_time
         for move in moves:
