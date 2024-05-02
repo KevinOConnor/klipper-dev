@@ -32,6 +32,8 @@ struct ldc1612 {
     struct trsync *ts;
     uint8_t homing_flags;
     uint8_t trigger_reason, error_reason;
+    uint8_t ema_factor;
+    uint32_t sensor_average;
     uint32_t trigger_threshold;
     uint32_t homing_clock;
 };
@@ -102,6 +104,20 @@ DECL_COMMAND(command_ldc1612_setup_home,
              "ldc1612_setup_home oid=%c clock=%u threshold=%u"
              " trsync_oid=%c trigger_reason=%c error_reason=%c");
 
+// Exponential moving average base factor
+#define EMA_BASE 16
+
+void
+command_ldc1612_setup_averaging(uint32_t *args)
+{
+    struct ldc1612 *ld = oid_lookup(args[0], command_config_ldc1612);
+    ld->ema_factor = args[1];
+    if (args[1] >= EMA_BASE)
+        shutdown("Invalid ldc1612 ema factor");
+}
+DECL_COMMAND(command_ldc1612_setup_averaging,
+             "ldc1612_setup_averaging oid=%c factor=%c");
+
 void
 command_query_ldc1612_home_state(uint32_t *args)
 {
@@ -125,12 +141,19 @@ check_home(struct ldc1612 *ld, uint32_t data)
         trsync_do_trigger(ld->ts, ld->error_reason);
         return;
     }
+    // Perform sensor averaging
+    uint32_t ema_factor = ld->ema_factor;
+    uint32_t scaled_prev = ld->sensor_average * ema_factor;
+    uint32_t scaled_data = data * (EMA_BASE - ema_factor);
+    uint32_t new_avg = DIV_ROUND_CLOSEST(scaled_data + scaled_prev, EMA_BASE);
+    ld->sensor_average = new_avg;
+    // Check if should signal a trigger event
     uint32_t time = timer_read_time();
     if ((homing_flags & LH_AWAIT_HOMING)
         && timer_is_before(time, ld->homing_clock))
         return;
     homing_flags &= ~LH_AWAIT_HOMING;
-    if (data > ld->trigger_threshold) {
+    if (new_avg > ld->trigger_threshold) {
         homing_flags = 0;
         ld->homing_clock = time;
         trsync_do_trigger(ld->ts, ld->trigger_reason);
