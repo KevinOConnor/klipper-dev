@@ -107,8 +107,10 @@ hx71x_event(struct timer *timer)
     if (hx71x_is_data_ready(hx71x)) {
         hx71x->pending_flag = 1;
         sched_wake_task(&wake_hx71x);
+        hx71x->timer.waketime += hx71x->rest_ticks * 8;
+    } else {
+        hx71x->timer.waketime += hx71x->rest_ticks;
     }
-    hx71x->timer.waketime += hx71x->rest_ticks;
     return SF_RESCHEDULE;
 }
 

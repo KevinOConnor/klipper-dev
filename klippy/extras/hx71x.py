@@ -93,7 +93,7 @@ class HX71xBase():
     # Start, stop, and process message batches
     def _start_measurements(self):
         # Start bulk reading
-        rest_ticks = self.mcu.seconds_to_clock(0.5 / self.sps)
+        rest_ticks = self.mcu.seconds_to_clock(1. / (11. * self.sps))
         self.query_hx71x_cmd.send([self.oid, rest_ticks])
         logging.info("HX71x starting '%s' measurements", self.name)
         # Initialize clock tracking
