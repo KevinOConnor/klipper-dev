@@ -9,7 +9,7 @@
       
       
       <link rel="icon" href="img/favicon.ico">
-      <meta name="generator" content="mkdocs-1.2.3, mkdocs-material-8.1.3">
+      <meta name="generator" content="mkdocs-1.2.4, mkdocs-material-8.1.3">
     
     
       
@@ -1260,6 +1260,20 @@
 
             
           
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="Eddy_Probe.html" class="md-nav__link">
+        Eddy Current Inductive probe
+      </a>
+    </li>
+  
+
+            
+          
         </ul>
       </nav>
     </li>
@@ -1337,6 +1351,44 @@ are not backwards compatible. It is a good idea to review this
 document when upgrading the Klipper software.</p>
 <p>All dates in this document are approximate.</p>
 <h2 id="changes">Changes<a class="headerlink" href="#changes" title="Permanent link">&para;</a></h2>
+<p>20240415: The <code>on_error_gcode</code> parameter in the <code>[virtual_sdcard]</code>
+config section now has a default. If this parameter is not specified
+it now defaults to <code>TURN_OFF_HEATERS</code>. If the previous behavior is
+desired (take no default action on an error during a virtual_sdcard
+print) then define <code>on_error_gcode</code> with an empty value.</p>
+<p>20240313: The <code>max_accel_to_decel</code> parameter in the <code>[printer]</code> config
+section has been deprecated. The <code>ACCEL_TO_DECEL</code> parameter of the
+<code>SET_VELOCITY_LIMIT</code> command has been deprecated. The
+<code>printer.toolhead.max_accel_to_decel</code> status has been removed. Use the
+<a href="Config_Reference.html#printer">minimum_cruise_ratio parameter</a>
+instead. The deprecated features will be removed in the near future,
+and using them in the interim may result in subtly different behavior.</p>
+<p>20240215: Several deprecated features have been removed. Using "NTC
+100K beta 3950" as a thermistor name has been removed (deprecated on
+20211110). The <code>SYNC_STEPPER_TO_EXTRUDER</code> and
+<code>SET_EXTRUDER_STEP_DISTANCE</code> commands have been removed, and the
+extruder <code>shared_heater</code> config option has been removed (deprecated on
+20220210). The bed_mesh <code>relative_reference_index</code> option has been
+removed (deprecated on 20230619).</p>
+<p>20240123: The output_pin SET_PIN CYCLE_TIME parameter has been
+removed. Use the new
+<a href="Config_Reference.html#pwm_cycle_time">pwm_cycle_time</a> module if it is
+necessary to dynamically change a pwm pin's cycle time.</p>
+<p>20240123: The output_pin <code>maximum_mcu_duration</code> parameter is
+deprecated. Use a <a href="Config_Reference.html#pwm_tool">pwm_tool config section</a>
+instead. The option will be removed in the near future.</p>
+<p>20240123: The output_pin <code>static_value</code> parameter is deprecated.
+Replace with <code>value</code> and <code>shutdown_value</code> parameters.  The option will
+be removed in the near future.</p>
+<p>20231216: The <code>[hall_filament_width_sensor]</code> is changed to trigger filament runout
+when the thickness of the filament exceeds <code>max_diameter</code>. The maximum diameter
+defaults to <code>default_nominal_filament_diameter + max_difference</code>. See
+<a href="Config_Reference.html#hall_filament_width_sensor">[hall_filament_width_sensor] configuration
+reference</a> for more details.</p>
+<p>20231207: Several undocumented config parameters in the <code>[printer]</code>
+config section have been removed (the buffer_time_low,
+buffer_time_high, buffer_time_start, and move_flush_time parameters).</p>
+<p>20231110: Klipper v0.12.0 released.</p>
 <p>20230826: If <code>safe_distance</code> is set or calculated to be 0 in <code>[dual_carriage]</code>,
 the carriages proximity checks will be disabled as per documentation. A user
 may wish to configure <code>safe_distance</code> explicitly to prevent accidental crashes

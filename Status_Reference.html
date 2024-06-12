@@ -9,7 +9,7 @@
       
       
       <link rel="icon" href="img/favicon.ico">
-      <meta name="generator" content="mkdocs-1.2.3, mkdocs-material-8.1.3">
+      <meta name="generator" content="mkdocs-1.2.4, mkdocs-material-8.1.3">
     
     
       
@@ -894,6 +894,13 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#gcode" class="md-nav__link">
+    gcode
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#gcode_button" class="md-nav__link">
     gcode_button
   </a>
@@ -1001,6 +1008,13 @@
         <li class="md-nav__item">
   <a href="#probe" class="md-nav__link">
     probe
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pwm_cycle_time" class="md-nav__link">
+    pwm_cycle_time
   </a>
   
 </li>
@@ -1565,6 +1579,20 @@
 
             
           
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="Eddy_Probe.html" class="md-nav__link">
+        Eddy Current Inductive probe
+      </a>
+    </li>
+  
+
+            
+          
         </ul>
       </nav>
     </li>
@@ -1697,6 +1725,13 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#gcode" class="md-nav__link">
+    gcode
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#gcode_button" class="md-nav__link">
     gcode_button
   </a>
@@ -1804,6 +1839,13 @@
         <li class="md-nav__item">
   <a href="#probe" class="md-nav__link">
     probe
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pwm_cycle_time" class="md-nav__link">
+    pwm_cycle_time
   </a>
   
 </li>
@@ -2106,6 +2148,12 @@ objects:</p>
   module. These settings may differ from the config file if a
   <code>SET_RETRACTION</code> command alters them.</li>
 </ul>
+<h2 id="gcode">gcode<a class="headerlink" href="#gcode" title="Permanent link">&para;</a></h2>
+<p>The following information is available in the <code>gcode</code> object:</p>
+<ul>
+<li><code>commands</code>: Returns a list of all currently available commands. For each
+  command, if a help string is defined it will also be provided.</li>
+</ul>
 <h2 id="gcode_button">gcode_button<a class="headerlink" href="#gcode_button" title="Permanent link">&para;</a></h2>
 <p>The following information is available in
 <a href="Config_Reference.html#gcode_button">gcode_button some_name</a> objects:</p>
@@ -2306,6 +2354,13 @@ is defined):</p>
   template expansion, the PROBE (or similar) command must be run prior
   to the macro containing this reference.</li>
 </ul>
+<h2 id="pwm_cycle_time">pwm_cycle_time<a class="headerlink" href="#pwm_cycle_time" title="Permanent link">&para;</a></h2>
+<p>The following information is available in
+<a href="Config_Reference.html#pwm_cycle_time">pwm_cycle_time some_name</a>
+objects:</p>
+<ul>
+<li><code>value</code>: The "value" of the pin, as set by a <code>SET_PIN</code> command.</li>
+</ul>
 <h2 id="quad_gantry_level">quad_gantry_level<a class="headerlink" href="#quad_gantry_level" title="Permanent link">&para;</a></h2>
 <p>The following information is available in the <code>quad_gantry_level</code> object
 (this object is available if quad_gantry_level is defined):</p>
@@ -2370,6 +2425,7 @@ object is available if any stepper is defined):</p>
 <p>The following information is available in</p>
 <p><a href="Config_Reference.html#bmp280bme280bme680-temperature-sensor">bme280 config_section_name</a>,
 <a href="Config_Reference.html#htu21d-sensor">htu21d config_section_name</a>,
+<a href="Config_Reference.html#sht31-sensor">sht3x config_section_name</a>,
 <a href="Config_Reference.html#lm75-temperature-sensor">lm75 config_section_name</a>,
 <a href="Config_Reference.html#host-temperature-sensor">temperature_host config_section_name</a>
 and
@@ -2378,7 +2434,7 @@ objects:</p>
 <ul>
 <li><code>temperature</code>: The last read temperature from the sensor.</li>
 <li><code>humidity</code>, <code>pressure</code>, <code>gas</code>: The last read values from the sensor
-  (only on bme280, htu21d, and lm75 sensors).</li>
+  (only on bme280, htu21d, sht3x and lm75 sensors).</li>
 </ul>
 <h2 id="temperature_fan">temperature_fan<a class="headerlink" href="#temperature_fan" title="Permanent link">&para;</a></h2>
 <p>The following information is available in
@@ -2437,7 +2493,7 @@ objects (eg, <code>[tmc2208 stepper_x]</code>):</p>
   limit value (eg, <code>axis_minimum.x</code>, <code>axis_maximum.z</code>).</li>
 <li>For Delta printers the <code>cone_start_z</code> is the max z height at
   maximum radius (<code>printer.toolhead.cone_start_z</code>).</li>
-<li><code>max_velocity</code>, <code>max_accel</code>, <code>max_accel_to_decel</code>,
+<li><code>max_velocity</code>, <code>max_accel</code>, <code>minimum_cruise_ratio</code>,
   <code>square_corner_velocity</code>: The current printing limits that are in
   effect. This may differ from the config file settings if a
   <code>SET_VELOCITY_LIMIT</code> (or <code>M204</code>) command alters them at run-time.</li>
