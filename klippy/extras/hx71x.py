@@ -82,12 +82,13 @@ class HX71xBase():
 
     # Measurement decoding
     def _convert_samples(self, samples):
+        adc_factor = 1. / (1<<23)
         count = 0
         for ptime, val in samples:
             if val == SAMPLE_ERROR:
                 self.last_error_count += 1
                 continue
-            samples[count] = (round(ptime, 6), val)
+            samples[count] = (round(ptime, 6), round(val * adc_factor, 9))
             count += 1
         del samples[count:]
 
