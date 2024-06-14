@@ -10,6 +10,7 @@ from . import bulk_sensor
 # Constants
 #
 UPDATE_INTERVAL = 0.10
+SAMPLE_ERROR = 0x40000000
 
 # Implementation of HX711 and HX717
 class HX71xBase():
@@ -83,7 +84,7 @@ class HX71xBase():
     def _convert_samples(self, samples):
         count = 0
         for ptime, val in samples:
-            if val & 0xffffffff == 0x80000000:
+            if val == SAMPLE_ERROR:
                 self.last_error_count += 1
                 continue
             samples[count] = (round(ptime, 6), val)

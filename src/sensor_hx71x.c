@@ -24,7 +24,7 @@ struct hx71x_adc {
 };
 
 #define BYTES_PER_SAMPLE 4
-#define SAMPLE_ERROR 0x80000000
+#define SAMPLE_ERROR 0x40000000
 
 static struct task_wake wake_hx71x;
 
