@@ -102,15 +102,17 @@ static uint_fast8_t
 hx71x_event(struct timer *timer)
 {
     struct hx71x_adc *hx71x = container_of(timer, struct hx71x_adc, timer);
-    if (hx71x->pending_flag)
+    uint32_t rest_ticks = hx71x->rest_ticks;
+    if (hx71x->pending_flag) {
         hx71x->sb.possible_overflows++;
-    if (hx71x_is_data_ready(hx71x)) {
+        rest_ticks *= 4;
+    } else if (hx71x_is_data_ready(hx71x)) {
+        // New sample pending
         hx71x->pending_flag = 1;
         sched_wake_task(&wake_hx71x);
-        hx71x->timer.waketime += hx71x->rest_ticks * 8;
-    } else {
-        hx71x->timer.waketime += hx71x->rest_ticks;
+        rest_ticks *= 8;
     }
+    hx71x->timer.waketime += rest_ticks;
     return SF_RESCHEDULE;
 }
 
