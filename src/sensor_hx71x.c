@@ -43,11 +43,11 @@ nsecs_to_ticks(uint32_t ns)
 
 // Pause for 200ns
 static void
-hx71x_delay_no_irq(void)
+hx71x_delay_noirq(void)
 {
     if (CONFIG_MACH_AVR) {
         // Optimize avr, as calculating time takes longer than needed delay
-        asm("nop ; nop");
+        asm("nop\n    nop");
         return;
     }
     uint32_t end = timer_read_time() + MIN_PULSE_TIME;
@@ -74,9 +74,9 @@ hx71x_raw_read(struct gpio_in dout, struct gpio_out sclk, int num_bits)
     uint32_t res = 0;
     while (num_bits--) {
         irq_disable();
-        gpio_out_write(sclk, 1);
-        hx71x_delay_no_irq();
-        gpio_out_write(sclk, 0);
+        gpio_out_toggle_noirq(sclk);
+        hx71x_delay_noirq();
+        gpio_out_toggle_noirq(sclk);
         uint_fast8_t v = gpio_in_read(dout);
         irq_enable();
         hx71x_delay();
