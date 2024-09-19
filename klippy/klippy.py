@@ -6,7 +6,7 @@
 # This file may be distributed under the terms of the GNU GPLv3 license.
 import sys, os, gc, optparse, logging, time, collections, importlib
 import util, reactor, queuelogger, msgproto
-import gcode, configfile, pins, mcu, toolhead, webhooks
+import gcode, configfile, pins, mcu, toolhead, webhooks, extmgr
 
 message_ready = "Printer is ready"
 
@@ -36,7 +36,7 @@ class Printer:
         self.event_handlers = {}
         self.objects = collections.OrderedDict()
         # Init printer components that must be setup prior to config
-        for m in [gcode, webhooks]:
+        for m in [gcode, webhooks, extmgr]:
             m.add_early_printer_objects(self)
     def get_start_args(self):
         return self.start_args
@@ -116,11 +116,14 @@ class Printer:
         config = pconfig.read_main_config()
         if self.bglogger is not None:
             pconfig.log_config(config)
+        extmgr = self.objects['extmgr']
         # Create printer components
         for m in [pins, mcu]:
             m.add_printer_objects(config)
         for section_config in config.get_prefix_sections(''):
             self.load_object(config, section_config.get_name(), None)
+            if section_config.get_name() not in self.objects:
+                extmgr.load_object(section_config, section_config.get_name())
         for m in [toolhead]:
             m.add_printer_objects(config)
         # Validate that there are no undefined parameters in the config file
@@ -265,6 +268,8 @@ def main():
                     help="input tty name (default is /tmp/printer)")
     opts.add_option("-a", "--api-server", dest="apiserver",
                     help="api server unix domain socket filename")
+    opts.add_option("-e", "--extensions", dest="extensions",
+                    help="directory to search for Klipper extensions")
     opts.add_option("-l", "--logfile", dest="logfile",
                     help="write log to file instead of stderr")
     opts.add_option("-v", action="store_true", dest="verbose",
@@ -282,7 +287,7 @@ def main():
     if len(args) != 1:
         opts.error("Incorrect number of arguments")
     start_args = {'config_file': args[0], 'apiserver': options.apiserver,
-                  'start_reason': 'startup'}
+                  'extensions': options.extensions, 'start_reason': 'startup'}
 
     debuglevel = logging.INFO
     if options.verbose:
