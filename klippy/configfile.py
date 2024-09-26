@@ -415,6 +415,8 @@ class ConfigValidate:
         self.status_settings = {}
         self.access_tracking = {}
         self.autosave_options = {}
+        self.claimed_sections = {}
+        self.ext_settings = {}
     def start_access_tracking(self, autosave_fileconfig):
         # Note autosave options for use during undefined options check
         self.autosave_options = {}
@@ -423,13 +425,35 @@ class ConfigValidate:
                 self.autosave_options[(section.lower(), option.lower())] = 1
         self.access_tracking = {}
         return self.access_tracking
+    def claim_options(self, settings, owner):
+        for s, so in settings.items():
+            if (type(s) != type("") or type(so) != type({})
+                or any([type(o) != type("") for o in so])):
+                raise error("Extension '%s' invalid claim config section '%s'"
+                            % (owner, s))
+            if s in self.claimed_sections:
+                raise error("Extension '%s' claims section '%s'"
+                            " owned by extension '%s'"
+                            % (owner, s, self.claimed_sections[s]))
+            self.claimed_sections[s] = owner
+        self.ext_settings.update(settings)
     def check_unused(self, fileconfig):
-        # Don't warn on fields set in autosave segment
-        access_tracking = dict(self.access_tracking)
-        access_tracking.update(self.autosave_options)
-        # Note locally used sections
-        valid_sections = { s: 1 for s, o in self.printer.lookup_objects() }
-        valid_sections.update({ s: 1 for s, o in access_tracking })
+        # Check for conflicts with claimed sections
+        local_sections = { s: 1 for s, o in self.printer.lookup_objects() }
+        local_sections.update({ s: 1 for s, o in self.access_tracking })
+        for s in local_sections:
+            if s in self.claimed_sections:
+                raise error("Extension '%s' claims local section '%s'"
+                            % (self.claimed_sections[s], s))
+        # Don't warn on fields set in autosave segment or claimed options
+        valid_options = dict(self.access_tracking)
+        valid_options.update(self.autosave_options)
+        valid_options.update({ (s, o): 1 for s, so in self.ext_settings.items()
+                               for o in so })
+        # Build list of valid sections
+        valid_sections = dict(local_sections)
+        valid_sections.update({ s: 1 for s, o in valid_options })
+        valid_sections.update({ s: 1 for s in self.claimed_sections })
         # Validate that there are no undefined parameters in the config file
         for section_name in fileconfig.sections():
             section = section_name.lower()
@@ -438,7 +462,7 @@ class ConfigValidate:
                             % (section,))
             for option in fileconfig.options(section_name):
                 option = option.lower()
-                if (section, option) not in access_tracking:
+                if (section, option) not in valid_options:
                     raise error("Option '%s' is not valid in section '%s'"
                                 % (option, section))
         # Setup get_status()
@@ -447,7 +471,7 @@ class ConfigValidate:
         self.access_tracking.clear()
         self.autosave_options.clear()
     def _build_status_settings(self):
-        self.status_settings = {}
+        self.status_settings = dict(self.ext_settings)
         for (section, option), value in self.access_tracking.items():
             self.status_settings.setdefault(section, {})[option] = value
     def get_status(self, eventtime):
@@ -489,6 +513,8 @@ class PrinterConfig:
                  cfgrdr.build_config_string(config.fileconfig),
                  "======================="]
         self.printer.set_rollover_info("config", "\n".join(lines))
+    def claim_options(self, settings, owner):
+        self.validate.claim_options(settings, owner)
     def check_unused_options(self, config):
         self.validate.check_unused(config.fileconfig)
     # Deprecation warnings
