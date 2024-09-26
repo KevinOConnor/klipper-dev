@@ -15,6 +15,7 @@ class ExtInstance:
         self.extdir = self.printer.get_start_args().get('extensions')
         self.proc = None
         self.uuid = str(uuid.uuid4())
+        self.config_snippet = None
         self.can_ack_config = False
         reactor = printer.get_reactor()
         self.ack_config_complete = reactor.completion()
@@ -22,6 +23,12 @@ class ExtInstance:
         return self.uuid
     def get_name(self):
         return self.name
+    def handle_append_config(self, webhooks):
+        if not self.can_ack_config:
+            raise web_request.error("Append config only valid during startup")
+        if self.config_snippet is not None:
+            raise web_request.error("Append config already called")
+        self.config_snippet = webhooks.get_str("config", None)
     def handle_ack_config(self, webhooks):
         if not self.can_ack_config:
             raise web_request.error("Acknowledgment not available")
@@ -72,6 +79,9 @@ class ExtInstance:
                                % (self.name, error_msg))
         pconfig = self.printer.lookup_object("configfile")
         pconfig.claim_options(settings, self.name)
+        # Check for a request to append to the main config
+        if self.config_snippet is not None:
+            pconfig.append_config(config, self.config_snippet, self.name)
         logging.info("Successfully completed config for extension '%s'",
                      self.name)
 
@@ -94,6 +104,8 @@ class ExtensionManager:
                                    self._handle_register)
         webhooks.register_endpoint("extmgr/acknowledge_config",
                                    self._handle_ack_config)
+        webhooks.register_endpoint("extmgr/append_config",
+                                   self._handle_append_config)
     def get_printer(self):
         return self.printer
     def load_object(self, config, section):
@@ -132,6 +144,9 @@ class ExtensionManager:
     def _handle_ack_config(self, web_request):
         ext = self.validate_webhooks_ext(web_request)
         ext.handle_ack_config(web_request)
+    def _handle_append_config(self, web_request):
+        ext = self.validate_webhooks_ext(web_request)
+        ext.handle_append_config(web_request)
 
 def add_early_printer_objects(printer):
     printer.add_object('extmgr', ExtensionManager(printer))

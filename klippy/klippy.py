@@ -120,10 +120,17 @@ class Printer:
         # Create printer components
         for m in [pins, mcu]:
             m.add_printer_objects(config)
-        for section_config in config.get_prefix_sections(''):
-            self.load_object(config, section_config.get_name(), None)
-            if section_config.get_name() not in self.objects:
-                extmgr.load_object(section_config, section_config.get_name())
+        all_sections = []
+        while 1:
+            sections = {c.get_name(): 1 for c in config.get_prefix_sections("")}
+            if sections == all_sections:
+                break
+            all_sections = sections
+            for section_config in config.get_prefix_sections(''):
+                self.load_object(config, section_config.get_name(), None)
+                if section_config.get_name() not in self.objects:
+                    extmgr.load_object(section_config,
+                                       section_config.get_name())
         for m in [toolhead]:
             m.add_printer_objects(config)
         # Validate that there are no undefined parameters in the config file

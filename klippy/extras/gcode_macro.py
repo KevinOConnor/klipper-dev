@@ -131,6 +131,10 @@ class GCodeMacro:
                 raise config.error(
                     "G-Code macro rename of different types ('%s' vs '%s')"
                     % (self.alias, self.rename_existing))
+            pconfig = printer.lookup_object('configfile')
+            if pconfig.get_section_origin(config.get_name()) is not None:
+                raise config.error(
+                    "G-Code macro rename not valid from an extension")
             printer.register_event_handler("klippy:connect",
                                            self.handle_connect)
         else:

@@ -417,6 +417,7 @@ class ConfigValidate:
         self.autosave_options = {}
         self.claimed_sections = {}
         self.ext_settings = {}
+        self.section_origin = {}
     def start_access_tracking(self, autosave_fileconfig):
         # Note autosave options for use during undefined options check
         self.autosave_options = {}
@@ -437,6 +438,16 @@ class ConfigValidate:
                             % (owner, s, self.claimed_sections[s]))
             self.claimed_sections[s] = owner
         self.ext_settings.update(settings)
+    def check_append(self, regular_fileconfig, append_fileconfig, owner):
+        for section_name in append_fileconfig.sections():
+            if regular_fileconfig.has_section(section_name):
+                raise error("Extension '%s' config append conflicts"
+                            " with existing section '%s'"
+                            % (owner, section_name))
+        for section_name in append_fileconfig.sections():
+            self.section_origin[section_name] = owner
+    def get_section_origin(self, section_name):
+        return self.section_origin.get(section_name)
     def check_unused(self, fileconfig):
         # Check for conflicts with claimed sections
         local_sections = { s: 1 for s, o in self.printer.lookup_objects() }
@@ -515,8 +526,18 @@ class PrinterConfig:
         self.printer.set_rollover_info("config", "\n".join(lines))
     def claim_options(self, settings, owner):
         self.validate.claim_options(settings, owner)
+    def append_config(self, config, data, owner):
+        regular_fileconfig = config.fileconfig
+        filename = '[%s]' % (owner,)
+        cfgrdr = ConfigFileReader()
+        append_fileconfig = cfgrdr.build_fileconfig(data, filename)
+        self.validate.check_append(regular_fileconfig, append_fileconfig, owner)
+        cfgrdr.append_fileconfig(regular_fileconfig, data, filename)
+        self._build_status_config(config)
     def check_unused_options(self, config):
         self.validate.check_unused(config.fileconfig)
+    def get_section_origin(self, section_name):
+        return self.validate.get_section_origin(section_name)
     # Deprecation warnings
     def runtime_warning(self, msg):
         logging.warning(msg)
