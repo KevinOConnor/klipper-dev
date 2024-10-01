@@ -503,6 +503,7 @@ class PrinterConfig:
         self.deprecate_warnings = []
         self.status_raw_config = {}
         self.status_warnings = []
+        self.config_log_lines = []
     def get_printer(self):
         return self.printer
     def read_config(self, filename):
@@ -523,6 +524,7 @@ class PrinterConfig:
         lines = ["===== Config file =====",
                  cfgrdr.build_config_string(config.fileconfig),
                  "======================="]
+        self.config_log_lines = lines
         self.printer.set_rollover_info("config", "\n".join(lines))
     def claim_options(self, settings, owner):
         self.validate.claim_options(settings, owner)
@@ -531,8 +533,14 @@ class PrinterConfig:
         filename = '[%s]' % (owner,)
         cfgrdr = ConfigFileReader()
         append_fileconfig = cfgrdr.build_fileconfig(data, filename)
+        raw_append = cfgrdr.build_config_string(append_fileconfig)
+        logging.info("Extension '%s' provides config:\n %s", owner, raw_append)
         self.validate.check_append(regular_fileconfig, append_fileconfig, owner)
         cfgrdr.append_fileconfig(regular_fileconfig, data, filename)
+        append_lines = ["===== Extension '%s' =====" % (owner,), raw_append]
+        self.config_log_lines[-1:-1] = append_lines
+        self.printer.set_rollover_info(
+            "config", "\n".join(self.config_log_lines), log=False)
         self._build_status_config(config)
     def check_unused_options(self, config):
         self.validate.check_unused(config.fileconfig)
