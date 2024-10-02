@@ -560,3 +560,91 @@ This will update the mesh configuration and probe points using the
 supplied parameters prior to returning the result.   It is recommended
 to omit mesh parameters unless it is desired to visualize the probe points
 and/or travel path before performing `BED_MESH_CALIBRATE`.
+
+## Extension "endpoints"
+
+The following "endpoints" are only available from an "extension
+module".  To support "extension modules" Klipper must be started with
+both the "-a" and "-e" parameter.  For example:
+```
+~/klippy-env/bin/python ~/klipper/klippy/klippy.py ~/printer.cfg -a /tmp/klippy_uds -e ~/kextensions/ -l /tmp/klippy.log
+```
+
+The given extension must also be launched directly by Klipper during
+its startup.
+
+### extmgr/register_extension
+
+This endpoint notifies Klipper that the connection is associated with
+an extension. The extension must send this command prior to running
+any other extension specific commands.
+
+For example:
+`{"id": 123, "method": "extmgr/register_extension",
+  "params": {"uuid": "4d1811b5-f605-4194-aea0-5ac79e209bf6"}}`
+
+Klipper provides the "uuid" parameter to the extension as a
+command-line argument when the extension is launched by Klipper. The
+extension should pass the contents from that command-line argument to
+the "uuid" parameter without otherwise inspecting or altering it.
+
+### extmgr/acknowledge_config
+
+This endpoint is used to indicate that the extension has completed its
+internal configuration. The normal Klipper startup is paused until the
+extension issues this command. The command must be issued within 5
+seconds of Klipper launching the extension, or otherwise Klipper will
+report a configuration error which halts normal startup.
+
+For example:
+`{"id": 123, "method": "extmgr/acknowledge_config",
+  "params": {"config": {'test_extension': {'somevalue': 12.3}}}}`
+
+The "config" parameter is used to acknowledge all config sections in
+the main printer.cfg file that are owned by the extension. Any config
+sections and/or config options that a user supplies to the extension
+that are not provided here will be result in Klipper raising "Section
+'some_section' is not a valid config section" type errors. The
+extension may only acknowledge config sections used exclusively by the
+extension (if multiple extensions acknowledge the same config
+sections, or an extension acknowledges a config section accessed
+directly by Klipper then Klipper will report a configuration
+error). The format of the "config" parameter should follow the format
+of the "configfile.settings"
+[status information](Status_Reference.md#configfile). If the provided
+value of a config section is non-null then the contents will be
+populated in "configfile.settings".
+
+The extension can also use this mechanism to report an error. For
+example:
+`{"id": 123, "method": "extmgr/acknowledge_config",
+  "params": {"error": "some error message"}}`
+
+If the extension reports an error, then Klipper will relay that error
+to the user and halt normal startup.
+
+### extmgr/append_config
+
+This endpoint allows an extension to supply additional printer.cfg
+type config sections to be parsed by Klipper during its normal startup.
+
+For example:
+`{"id": 123, "method": "extmgr/acknowledge_config",
+  "config": "[gcode_macro mycmd]\n gcode: ECHO msg=hello"}`
+
+The contents of the provided "config" parameter are effectively
+appended to the main Klipper "printer.cfg" file.
+
+The extension may only issue this command prior to sending
+"extmgr/acknowledge_config" and may only issue this command once.
+
+The provided config sections may only add new config sections. The
+extension is not permitted to alter the contents of existing config
+sections nor add new options to existing config sections. Some Klipper
+internal modules may restrict what config sections may be provided by
+an extension. The "gcode_macro" module will not permit an extension to
+provide a config section with a "rename_existing" option.
+
+It is recommended that extension authors include the extension name in
+the names of all appended config sections to avoid conflicts with
+config sections provided by other extensions.
