@@ -33,87 +33,6 @@ report_errno(char *where, int rc)
 
 
 /****************************************************************
- * Setup
- ****************************************************************/
-
-int
-set_non_blocking(int fd)
-{
-    int flags = fcntl(fd, F_GETFL);
-    if (flags < 0) {
-        report_errno("fcntl getfl", flags);
-        return -1;
-    }
-    int ret = fcntl(fd, F_SETFL, flags | O_NONBLOCK);
-    if (ret < 0) {
-        report_errno("fcntl setfl", flags);
-        return -1;
-    }
-    return 0;
-}
-
-int
-set_close_on_exec(int fd)
-{
-    int ret = fcntl(fd, F_SETFD, FD_CLOEXEC);
-    if (ret < 0) {
-        report_errno("fcntl set cloexec", ret);
-        return -1;
-    }
-    return 0;
-}
-
-int
-console_setup(char *name)
-{
-    // Open pseudo-tty
-    struct termios ti;
-    memset(&ti, 0, sizeof(ti));
-    int mfd, sfd, ret = openpty(&mfd, &sfd, NULL, &ti, NULL);
-    if (ret) {
-        report_errno("openpty", ret);
-        return -1;
-    }
-    ret = set_non_blocking(mfd);
-    if (ret)
-        return -1;
-    ret = set_close_on_exec(mfd);
-    if (ret)
-        return -1;
-    ret = set_close_on_exec(sfd);
-    if (ret)
-        return -1;
-    main_pfd[MP_TTY_IDX].fd = mfd;
-    main_pfd[MP_TTY_IDX].events = POLLIN;
-
-    // Create symlink to tty
-    unlink(name);
-    char *tname = ttyname(sfd);
-    if (!tname) {
-        report_errno("ttyname", 0);
-        return -1;
-    }
-    ret = symlink(tname, name);
-    if (ret) {
-        report_errno("symlink", ret);
-        return -1;
-    }
-    ret = chmod(tname, 0660);
-    if (ret) {
-        report_errno("chmod", ret);
-        return -1;
-    }
-
-    // Make sure stderr is non-blocking
-    ret = set_non_blocking(STDERR_FILENO);
-    if (ret)
-        return -1;
-
-    return 0;
-}
-
-
-/****************************************************************
  * Console handling
  ****************************************************************/
 
@@ -195,4 +114,85 @@ console_sleep(sigset_t *sigset)
     }
     if (main_pfd[MP_TTY_IDX].revents)
         sched_wake_task(&ConsoleInfo.console_wake);
+}
+
+
+/****************************************************************
+ * Setup
+ ****************************************************************/
+
+int
+set_non_blocking(int fd)
+{
+    int flags = fcntl(fd, F_GETFL);
+    if (flags < 0) {
+        report_errno("fcntl getfl", flags);
+        return -1;
+    }
+    int ret = fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+    if (ret < 0) {
+        report_errno("fcntl setfl", flags);
+        return -1;
+    }
+    return 0;
+}
+
+int
+set_close_on_exec(int fd)
+{
+    int ret = fcntl(fd, F_SETFD, FD_CLOEXEC);
+    if (ret < 0) {
+        report_errno("fcntl set cloexec", ret);
+        return -1;
+    }
+    return 0;
+}
+
+int
+console_setup(char *name)
+{
+    // Open pseudo-tty
+    struct termios ti;
+    memset(&ti, 0, sizeof(ti));
+    int mfd, sfd, ret = openpty(&mfd, &sfd, NULL, &ti, NULL);
+    if (ret) {
+        report_errno("openpty", ret);
+        return -1;
+    }
+    ret = set_non_blocking(mfd);
+    if (ret)
+        return -1;
+    ret = set_close_on_exec(mfd);
+    if (ret)
+        return -1;
+    ret = set_close_on_exec(sfd);
+    if (ret)
+        return -1;
+    main_pfd[MP_TTY_IDX].fd = mfd;
+    main_pfd[MP_TTY_IDX].events = POLLIN;
+
+    // Create symlink to tty
+    unlink(name);
+    char *tname = ttyname(sfd);
+    if (!tname) {
+        report_errno("ttyname", 0);
+        return -1;
+    }
+    ret = symlink(tname, name);
+    if (ret) {
+        report_errno("symlink", ret);
+        return -1;
+    }
+    ret = chmod(tname, 0660);
+    if (ret) {
+        report_errno("chmod", ret);
+        return -1;
+    }
+
+    // Make sure stderr is non-blocking
+    ret = set_non_blocking(STDERR_FILENO);
+    if (ret)
+        return -1;
+
+    return 0;
 }
