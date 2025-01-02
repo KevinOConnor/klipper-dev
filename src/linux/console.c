@@ -117,26 +117,31 @@ console_setup(char *name)
  * Console handling
  ****************************************************************/
 
-static struct task_wake console_wake;
-static uint8_t receive_buf[4096];
-static int receive_pos;
+// Global storage for input command reading
+static struct {
+    struct task_wake console_wake;
+    uint8_t receive_buf[4096];
+    int receive_pos;
+} ConsoleInfo;
 
 void *
 console_receive_buffer(void)
 {
-    return receive_buf;
+    return ConsoleInfo.receive_buf;
 }
 
 // Process any incoming commands
 void
 console_task(void)
 {
-    if (!sched_check_wake(&console_wake))
+    if (!sched_check_wake(&ConsoleInfo.console_wake))
         return;
 
     // Read data
+    int receive_pos = ConsoleInfo.receive_pos;
+    uint8_t *receive_buf = ConsoleInfo.receive_buf;
     int ret = read(main_pfd[MP_TTY_IDX].fd, &receive_buf[receive_pos]
-                   , sizeof(receive_buf) - receive_pos);
+                   , sizeof(ConsoleInfo.receive_buf) - receive_pos);
     if (ret < 0) {
         if (errno == EWOULDBLOCK) {
             ret = 0;
@@ -157,10 +162,10 @@ console_task(void)
         len -= pop_count;
         if (len) {
             memmove(receive_buf, &receive_buf[pop_count], len);
-            sched_wake_task(&console_wake);
+            sched_wake_task(&ConsoleInfo.console_wake);
         }
     }
-    receive_pos = len;
+    ConsoleInfo.receive_pos = len;
 }
 DECL_TASK(console_task);
 
@@ -189,5 +194,5 @@ console_sleep(sigset_t *sigset)
         return;
     }
     if (main_pfd[MP_TTY_IDX].revents)
-        sched_wake_task(&console_wake);
+        sched_wake_task(&ConsoleInfo.console_wake);
 }
