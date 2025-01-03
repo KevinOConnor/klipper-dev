@@ -19,12 +19,13 @@ void report_errno(char *where, int rc);
 int set_non_blocking(int fd);
 int set_close_on_exec(int fd);
 int console_setup(char *name);
-void console_sleep(sigset_t *sigset);
 
 // timer.c
 int timer_check_periodic(uint32_t *ts);
 void timer_disable_signals(void);
 void timer_enable_signals(void);
+struct task_wake;
+void timer_wake_task_from_thread(struct task_wake *w);
 
 // watchdog.c
 int watchdog_setup(void);

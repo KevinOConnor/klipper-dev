@@ -1,27 +1,24 @@
 // TTY based IO
 //
-// Copyright (C) 2017-2021  Kevin O'Connor <kevin@koconnor.net>
+// Copyright (C) 2017-2025  Kevin O'Connor <kevin@koconnor.net>
 //
 // This file may be distributed under the terms of the GNU GPLv3 license.
 
-#define _GNU_SOURCE
 #include <errno.h> // errno
 #include <fcntl.h> // fcntl
-#include <poll.h> // ppoll
+#include <poll.h> // poll
 #include <pty.h> // openpty
 #include <stdio.h> // fprintf
 #include <string.h> // memmove
 #include <sys/stat.h> // chmod
 #include <time.h> // struct timespec
 #include <unistd.h> // ttyname
+#include <pthread.h> // pthread_create
 #include "board/irq.h" // irq_wait
 #include "board/misc.h" // console_sendf
 #include "command.h" // command_find_block
 #include "internal.h" // console_setup
 #include "sched.h" // sched_wake_task
-
-static struct pollfd main_pfd[1];
-#define MP_TTY_IDX   0
 
 // Report 'errno' in a message written to stderr
 void
@@ -33,15 +30,92 @@ report_errno(char *where, int rc)
 
 
 /****************************************************************
- * Console handling
+ * Console reading background thread
  ****************************************************************/
 
 // Global storage for input command reading
 static struct {
     struct task_wake console_wake;
     uint8_t receive_buf[4096];
-    int receive_pos;
+
+    // Main input file
+    int fd;
+
+    // All variables below must be protected by lock
+    pthread_mutex_t lock;
+
+    int receive_pos, force_shutdown;
 } ConsoleInfo;
+
+// Sleep until a signal received (waking early for console input if needed)
+static void *
+console_thread(void *data)
+{
+    int MP_TTY_IDX = 0;
+    struct pollfd main_pfd[1];
+    main_pfd[MP_TTY_IDX].fd = ConsoleInfo.fd;
+
+    uint8_t *receive_buf = ConsoleInfo.receive_buf;
+    for (;;) {
+        main_pfd[MP_TTY_IDX].events = POLLIN;
+        int ret = poll(main_pfd, ARRAY_SIZE(main_pfd), -1);
+        if (ret <= 0) {
+            if (errno != EINTR)
+                report_errno("poll main_pfd", ret);
+            return NULL;
+        }
+        if (!main_pfd[MP_TTY_IDX].revents)
+            continue;
+        sched_wake_task(&ConsoleInfo.console_wake);
+
+        // Read data
+        pthread_mutex_lock(&ConsoleInfo.lock);
+        int receive_pos = ConsoleInfo.receive_pos;
+        pthread_mutex_unlock(&ConsoleInfo.lock);
+        uint8_t readsize = sizeof(ConsoleInfo.receive_buf) - receive_pos;
+        if (readsize <= 0) {
+            usleep(10); // XXX
+            continue;
+        }
+        ret = read(main_pfd[MP_TTY_IDX].fd, &receive_buf[receive_pos]
+                   , readsize);
+        if (ret < 0) {
+            if (errno == EWOULDBLOCK) {
+                continue;
+            } else {
+                report_errno("read", ret);
+                return NULL;
+            }
+        }
+
+        // Check for forced shutdown indicator
+        if (ret == 15 && receive_buf[receive_pos+14] == '\n'
+            && memcmp(&receive_buf[receive_pos], "FORCE_SHUTDOWN\n", 15) == 0) {
+            pthread_mutex_lock(&ConsoleInfo.lock);
+            ConsoleInfo.force_shutdown = 1;
+            timer_wake_task_from_thread(&ConsoleInfo.console_wake);
+            pthread_mutex_unlock(&ConsoleInfo.lock);
+            continue;
+        }
+
+        // Add to buffer
+        pthread_mutex_lock(&ConsoleInfo.lock);
+        int new_receive_pos = ConsoleInfo.receive_pos;
+        if (new_receive_pos != receive_pos)
+            memmove(&receive_buf[new_receive_pos], &receive_buf[receive_pos]
+                    , receive_pos - new_receive_pos);
+        ConsoleInfo.receive_pos = new_receive_pos + ret;
+
+        timer_wake_task_from_thread(&ConsoleInfo.console_wake);
+
+        pthread_mutex_unlock(&ConsoleInfo.lock);
+    }
+}
+
+
+/****************************************************************
+ * Console handling
+ ****************************************************************/
 
 void *
 console_receive_buffer(void)
@@ -56,27 +130,18 @@ console_task(void)
     if (!sched_check_wake(&ConsoleInfo.console_wake))
         return;
 
-    // Read data
-    int receive_pos = ConsoleInfo.receive_pos;
-    uint8_t *receive_buf = ConsoleInfo.receive_buf;
-    int ret = read(main_pfd[MP_TTY_IDX].fd, &receive_buf[receive_pos]
-                   , sizeof(ConsoleInfo.receive_buf) - receive_pos);
-    if (ret < 0) {
-        if (errno == EWOULDBLOCK) {
-            ret = 0;
-        } else {
-            report_errno("read", ret);
-            return;
-        }
-    }
-    if (ret == 15 && receive_buf[receive_pos+14] == '\n'
-        && memcmp(&receive_buf[receive_pos], "FORCE_SHUTDOWN\n", 15) == 0)
+    pthread_mutex_lock(&ConsoleInfo.lock);
+    if (ConsoleInfo.force_shutdown) {
+        ConsoleInfo.force_shutdown = 0;
+        pthread_mutex_unlock(&ConsoleInfo.lock);
         shutdown("Force shutdown command");
+    }
 
     // Find and dispatch message blocks in the input
-    int len = receive_pos + ret;
+    uint8_t *receive_buf = ConsoleInfo.receive_buf;
+    int len = ConsoleInfo.receive_pos;
     uint_fast8_t pop_count, msglen = len > MESSAGE_MAX ? MESSAGE_MAX : len;
-    ret = command_find_and_dispatch(receive_buf, msglen, &pop_count);
+    int ret = command_find_and_dispatch(receive_buf, msglen, &pop_count);
     if (ret) {
         len -= pop_count;
         if (len) {
@@ -85,6 +150,7 @@ console_task(void)
         }
     }
     ConsoleInfo.receive_pos = len;
+    pthread_mutex_unlock(&ConsoleInfo.lock);
 }
 DECL_TASK(console_task);
 
@@ -97,23 +163,9 @@ console_sendf(const struct command_encoder *ce, va_list args)
     uint_fast8_t msglen = command_encode_and_frame(buf, ce, args);
 
     // Transmit message
-    int ret = write(main_pfd[MP_TTY_IDX].fd, buf, msglen);
+    int ret = write(ConsoleInfo.fd, buf, msglen);
     if (ret < 0)
         report_errno("write", ret);
-}
-
-// Sleep until a signal received (waking early for console input if needed)
-void
-console_sleep(sigset_t *sigset)
-{
-    int ret = ppoll(main_pfd, ARRAY_SIZE(main_pfd), NULL, sigset);
-    if (ret <= 0) {
-        if (errno != EINTR)
-            report_errno("ppoll main_pfd", ret);
-        return;
-    }
-    if (main_pfd[MP_TTY_IDX].revents)
-        sched_wake_task(&ConsoleInfo.console_wake);
 }
 
 
@@ -168,8 +220,7 @@ console_setup(char *name)
     ret = set_close_on_exec(sfd);
     if (ret)
         return -1;
-    main_pfd[MP_TTY_IDX].fd = mfd;
-    main_pfd[MP_TTY_IDX].events = POLLIN;
+    ConsoleInfo.fd = mfd;
 
     // Create symlink to tty
     unlink(name);
@@ -191,6 +242,18 @@ console_setup(char *name)
 
     // Make sure stderr is non-blocking
     ret = set_non_blocking(STDERR_FILENO);
+    if (ret)
+        return -1;
+
+    // Create background reading thread
+    ret = pthread_mutex_init(&ConsoleInfo.lock, NULL);
+    if (ret)
+        return -1;
+
+    pthread_t reader_tid; // Not used
+    timer_disable_signals();
+    ret = pthread_create(&reader_tid, NULL, console_thread, NULL);
+    timer_enable_signals();
     if (ret)
         return -1;
 

@@ -1,16 +1,17 @@
 // Handling of timers on linux systems
 //
-// Copyright (C) 2017-2021  Kevin O'Connor <kevin@koconnor.net>
+// Copyright (C) 2017-2025  Kevin O'Connor <kevin@koconnor.net>
 //
 // This file may be distributed under the terms of the GNU GPLv3 license.
 
+#include <pthread.h> // pthread_mutex_t
 #include <time.h> // struct timespec
 #include "autoconf.h" // CONFIG_CLOCK_FREQ
 #include "board/io.h" // readl
 #include "board/irq.h" // irq_disable
 #include "board/misc.h" // timer_from_us
 #include "command.h" // DECL_CONSTANT
-#include "internal.h" // console_sleep
+#include "internal.h" // timer_check_periodic
 #include "sched.h" // DECL_INIT
 
 // Global storage for timer handling
@@ -27,6 +28,10 @@ static struct {
     // Unix signal tracking
     timer_t t_alarm;
     sigset_t ss_alarm, ss_sleep;
+    // Waking from background threads
+    pthread_mutex_t lock;
+    pthread_cond_t cond;
+    int sleeping;
 } TimerInfo;
 
 
@@ -208,6 +213,12 @@ timer_init(void)
     TimerInfo.start_sec = curtime.tv_sec + 1;
     TimerInfo.next_wake = curtime;
     TimerInfo.next_wake_counter = timespec_to_time(curtime);
+
+
+    // XXX - need to initialize mutex and cond
+
+
+
     // Initialize t_alarm signal based timer
     ret = timer_create(CLOCK_MONOTONIC, NULL, &TimerInfo.t_alarm);
     if (ret < 0) {
@@ -269,10 +280,13 @@ irq_wait(void)
 {
     // Must atomically sleep until signaled
     if (!readl(&TimerInfo.must_wake_timers)) {
-        timer_disable_signals();
-        if (!TimerInfo.must_wake_timers)
-            console_sleep(&TimerInfo.ss_sleep);
-        timer_enable_signals();
+        pthread_mutex_lock(&TimerInfo.lock);
+        TimerInfo.sleeping = 1;
+        // XXX - doesn't work as next_wake uses clock_monotonic!!!
+        pthread_cond_timedwait(&TimerInfo.cond, &TimerInfo.lock
+                               , &TimerInfo.next_wake);
+        TimerInfo.sleeping = 0;
+        pthread_mutex_unlock(&TimerInfo.lock);
     }
     irq_poll();
 }
@@ -282,4 +296,18 @@ irq_poll(void)
 {
     if (readl(&TimerInfo.must_wake_timers))
         timer_dispatch();
+}
+
+void
+timer_wake_task_from_thread(struct task_wake *w)
+{
+    pthread_mutex_lock(&TimerInfo.lock);
+
+    // XXX - may not be thread safe
+    sched_wake_task(w);
+
+    if (TimerInfo.sleeping)
+        pthread_cond_signal(&TimerInfo.cond);
+
+    pthread_mutex_unlock(&TimerInfo.lock);
 }
