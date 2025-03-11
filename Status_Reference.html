@@ -878,6 +878,13 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#canbus_stats" class="md-nav__link">
+    canbus_stats
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#configfile" class="md-nav__link">
     configfile
   </a>
@@ -1090,6 +1097,13 @@
         <li class="md-nav__item">
   <a href="#servo" class="md-nav__link">
     servo
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#skew_correctionpy" class="md-nav__link">
+    skew_correction.py
   </a>
   
 </li>
@@ -1709,6 +1723,13 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#canbus_stats" class="md-nav__link">
+    canbus_stats
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#configfile" class="md-nav__link">
     configfile
   </a>
@@ -1926,6 +1947,13 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#skew_correctionpy" class="md-nav__link">
+    skew_correction.py
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#stepper_enable" class="md-nav__link">
     stepper_enable
   </a>
@@ -2064,6 +2092,26 @@ the following strings: "adjust", "fine".</li>
 <li><code>current_screw</code>: The index for the current screw being adjusted.</li>
 <li><code>accepted_screws</code>: The number of accepted screws.</li>
 </ul>
+<h2 id="canbus_stats">canbus_stats<a class="headerlink" href="#canbus_stats" title="Permanent link">&para;</a></h2>
+<p>The following information is available in the <code>canbus_stats
+some_mcu_name</code> object (this object is automatically available if an
+mcu is configured to use canbus):</p>
+<ul>
+<li><code>rx_error</code>: The number of receive errors detected by the
+  micro-controller canbus hardware.</li>
+<li><code>tx_error</code>: The number of transmit errors detected by the
+  micro-controller canbus hardware.</li>
+<li><code>tx_retries</code>: The number of transmit attempts that were retried due
+  to bus contention or errors.</li>
+<li><code>bus_state</code>: The status of the interface (typically "active" for a
+  bus in normal operation, "warn" for a bus with recent errors,
+  "passive" for a bus that will no longer transmit canbus error
+  frames, or "off" for a bus that will no longer transmit or receive
+  messages).</li>
+</ul>
+<p>Note that only the rp2XXX micro-controllers report a non-zero
+<code>tx_retries</code> field and the rp2XXX micro-controllers always report
+<code>tx_error</code> as zero and <code>bus_state</code> as "active".</p>
 <h2 id="configfile">configfile<a class="headerlink" href="#configfile" title="Permanent link">&para;</a></h2>
 <p>The following information is available in the <code>configfile</code> object
 (this object is always available):</p>
@@ -2454,6 +2502,12 @@ object:</p>
 <ul>
 <li><code>printer["servo &lt;config_name&gt;"].value</code>: The last setting of the PWM
   pin (a value between 0.0 and 1.0) associated with the servo.</li>
+</ul>
+<h2 id="skew_correctionpy">skew_correction.py<a class="headerlink" href="#skew_correctionpy" title="Permanent link">&para;</a></h2>
+<p>The following information is available in the <code>skew_correction</code> object (this
+object is available if any skew_correction is defined):</p>
+<ul>
+<li><code>current_profile_name</code>: Returns the name of the currently loaded SKEW_PROFILE.</li>
 </ul>
 <h2 id="stepper_enable">stepper_enable<a class="headerlink" href="#stepper_enable" title="Permanent link">&para;</a></h2>
 <p>The following information is available in the <code>stepper_enable</code> object (this
