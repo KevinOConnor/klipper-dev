@@ -1138,6 +1138,17 @@ WRITE_FILE parameter is enabled, then the file /tmp/heattest.txt will
 be created with a log of all temperature samples taken during the
 test.
 
+### [pivot_coord]
+
+The following commands are available when the
+[pivot_coord config section](Config_Reference.md#pivot_coord) is
+enabled:
+
+#### PIVOT_COORD
+`PIVOT_COORD ACTIVATE=[0|1]`: Enable or disable g-code coordinate
+translation specified in the "pivot_coord" configuration. See the
+[six-axis guide](Six_Axis.md) for examples.
+
 ### [print_stats]
 
 The print_stats module is automatically loaded.
