@@ -116,8 +116,9 @@ nav:
     - Multi_MCU_Homing.md
     - Slicers.md
     - Skew_Correction.md
-    - Exclude_Object.md
     - Using_PWM_Tools.md
+    - Exclude_Object.md
+    - Six_Axis.md
   - Developer Documentation:
     - Code_Overview.md
     - Kinematics.md
