@@ -1593,6 +1593,61 @@ Marlin/RepRapFirmware compatible M486 G-Code macro.
 [exclude_object]
 ```
 
+### [pivot_coord]
+
+Translate g-code coordinates for 6+ axis printers that can pivot the
+bed. This allows one to issue `G1` commands with XYZ coordinates that
+are relative to the bed, and the module will translate those XYZ bed
+relative coordinates to XYZ coordinates relative to the printer
+frame. See the [six-axis guide](Six_Axis.md) and the
+[command reference](G-Codes.md#pivot_coord) for more information.
+
+```
+[pivot_coord]
+#resolution: 0.100
+#   Moves that change the angle of the bed will result in toolhead arc
+#   movements (relative to the frame). To obtain these arc movements
+#   this module may split moves into many tiny movements each with a
+#   resolution set here. Smaller values will produce a finer arc, but
+#   are also more work for your machine. Arcs smaller than the
+#   configured value will become straight lines. The default is
+#   0.100mm.
+#axis_full_rotation: 360
+#   The distance the bed pivot motors must move to complete one full
+#   rotation. The default is 360.
+control_0: manual_stepper my_a
+#   The name of the manual stepper config section that controls the
+#   first bed pivot motor. This should be the entire config section
+#   name (eg, "manual_stepper my_stepper"). The first motor should be
+#   the pivot "closest" to the bed (for example, if there is a
+#   "bed_z_pivot" motor that rotates the bed along the Z axis and
+#   another "x_assembly_pivot" that rotates the bed_z_pivot motor
+#   along the X axis, then one would specify the control_0 parameter
+#   as "manual_stepper bed_z_pivot" because it is the motor most
+#   directly attached to the bed). This parameter must be specified.
+rotate_axis_0: z
+#   The axis of rotation of the given pivot motor.  This may be 'x',
+#   'y', or 'z' for motors that pivot the bed along the x, y, and z
+#   axes respectively.  This parameter must be specified.
+offset_x_0: 0
+offset_y_0: 0
+offset_z_0: 0
+#   The xyz offset of the pivot (in coordinates relative to the frame,
+#   while all pivot motors are at a zero angle).  The default is zero
+#   for each axis.
+control_<n>:
+rotate_axis_<n>:
+offset_x_<n>:
+offset_y_<n>:
+offset_z_<n>:
+#   One may specify additional bed pivot motors, their axis of
+#   rotation, and their pivot location (for example, "control_1",
+#   "control_2", ...).  Motors should be specified in the order of
+#   their "closeness" to the bed (the motor directly controlling the
+#   bed angle is specified as "control_0", the next motor pivoting
+#   that assembly would be "control_1", and so on).
+```
+
 ## Resonance compensation
 
 ### [input_shaper]

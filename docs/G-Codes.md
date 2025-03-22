@@ -981,20 +981,6 @@ Palette 2 once the loading has been completed. This command is the
 same as pressing **Smart Load** directly on the Palette 2 screen after
 the filament load is complete.
 
-### [pid_calibrate]
-
-The pid_calibrate module is automatically loaded if a heater is defined
-in the config file.
-
-#### PID_CALIBRATE
-`PID_CALIBRATE HEATER=<config_name> TARGET=<temperature>
-[WRITE_FILE=1]`: Perform a PID calibration test. The specified heater
-will be enabled until the specified target temperature is reached, and
-then the heater will be turned off and on for several cycles. If the
-WRITE_FILE parameter is enabled, then the file /tmp/heattest.txt will
-be created with a log of all temperature samples taken during the
-test.
-
 ### [pause_resume]
 
 The following commands are available when the
@@ -1019,6 +1005,31 @@ the paused state is fresh for each print.
 
 #### CANCEL_PRINT
 `CANCEL_PRINT`: Cancels the current print.
+
+### [pid_calibrate]
+
+The pid_calibrate module is automatically loaded if a heater is defined
+in the config file.
+
+#### PID_CALIBRATE
+`PID_CALIBRATE HEATER=<config_name> TARGET=<temperature>
+[WRITE_FILE=1]`: Perform a PID calibration test. The specified heater
+will be enabled until the specified target temperature is reached, and
+then the heater will be turned off and on for several cycles. If the
+WRITE_FILE parameter is enabled, then the file /tmp/heattest.txt will
+be created with a log of all temperature samples taken during the
+test.
+
+### [pivot_coord]
+
+The following commands are available when the
+[pivot_coord config section](Config_Reference.md#pivot_coord) is
+enabled:
+
+#### PIVOT_COORD
+`PIVOT_COORD ACTIVATE=[0|1]`: Enable or disable g-code coordinate
+translation specified in the "pivot_coord" configuration. See the
+[six-axis guide](Six_Axis.md) for examples.
 
 ### [print_stats]
 

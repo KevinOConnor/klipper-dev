@@ -59,6 +59,8 @@ communication with the Klipper developers.
   tools such as lasers or spindles.
 - [Exclude Object](Exclude_Object.md): The guide to the Exclude Objects
   implementation.
+- [Six Axis](Six_Axis.md): Guide to enabling additional axes beyond
+  basic XYZ axes.
 
 ## Developer Documentation
 
