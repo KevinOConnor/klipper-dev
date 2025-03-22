@@ -242,6 +242,7 @@ class PrinterExtruder:
         can_pressure_advance = False
         if axis_r > 0. and (move.axes_d[0] or move.axes_d[1]):
             can_pressure_advance = True
+            # XXX - also check for follow-along axes
         # Queue movement (x is extruder movement, y is pressure advance flag)
         self.trapq_append(self.trapq, print_time,
                           move.accel_t, move.cruise_t, move.decel_t,
