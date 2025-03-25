@@ -155,13 +155,17 @@ running the following tuning tower command:
 TUNING_TOWER COMMAND=G1 PARAMETER=C START=0 STEP_DELTA=10 STEP_HEIGHT=5
 ```
 
+Be sure to activate the `pivot_coord` (with `PIVOT_COORD ACTIVATE=1`)
+prior to running `TUNING_TOWER` as the order of these two operations
+is important.
+
 The above command will rotate the bed 10 degrees after every 5mm of Z
 height. If the pivot offsets are accurate, there should be no
 noticeable "bands" every 5mm. If at the 5mm marks the new layers do
 not fully align with the bottom layers it would indicate that the
 pivot offset needs to be adjusted.
 
-For a "axis_a" type rotation axis (or for axes that rotate the bed on
+For an "axis_a" type rotation axis (or for axes that rotate the bed on
 a line parallel to the X or Y axis) consider printing the above object
 after running the following tuning tower command:
 
