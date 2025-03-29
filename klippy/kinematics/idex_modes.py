@@ -42,10 +42,12 @@ class DualCarriages:
                    desc=self.cmd_RESTORE_DUAL_CARRIAGE_STATE_help)
     def get_rails(self):
         return self.dc
+    def get_axis(self):
+        return self.axis
     def get_primary_rail(self):
         for rail in self.dc:
             if rail.mode == PRIMARY:
-                return rail
+                return rail.get_rail()
         return None
     def toggle_active_dc_rail(self, index):
         toolhead = self.printer.lookup_object('toolhead')

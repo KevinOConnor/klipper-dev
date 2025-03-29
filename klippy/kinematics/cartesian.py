@@ -52,9 +52,9 @@ class CartKinematics:
     def calc_position(self, stepper_positions):
         rails = self.rails
         if self.dc_module:
-            primary_rail = self.dc_module.get_primary_rail().get_rail()
-            rails = (rails[:self.dc_module.axis] +
-                     [primary_rail] + rails[self.dc_module.axis+1:])
+            primary_rail = self.dc_module.get_primary_rail()
+            rails = (rails[:self.dc_module.get_axis()] +
+                     [primary_rail] + rails[self.dc_module.get_axis()+1:])
         return [stepper_positions[rail.get_name()] for rail in rails]
     def update_limits(self, i, range):
         l, h = self.limits[i]
@@ -67,8 +67,8 @@ class CartKinematics:
             rail.set_position(newpos)
         for axis_name in homing_axes:
             axis = "xyz".index(axis_name)
-            if self.dc_module and axis == self.dc_module.axis:
-                rail = self.dc_module.get_primary_rail().get_rail()
+            if self.dc_module and axis == self.dc_module.get_axis():
+                rail = self.dc_module.get_primary_rail()
             else:
                 rail = self.rails[axis]
             self.limits[axis] = rail.get_range()
