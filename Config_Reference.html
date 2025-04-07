@@ -934,6 +934,13 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#icm20948" class="md-nav__link">
+    [icm20948]
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#lis2dw" class="md-nav__link">
     [lis2dw]
   </a>
@@ -3058,6 +3065,13 @@
           <li class="md-nav__item">
   <a href="#adxl345" class="md-nav__link">
     [adxl345]
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#icm20948" class="md-nav__link">
+    [icm20948]
   </a>
   
 </li>
@@ -5467,6 +5481,22 @@ cs_pin:
 #   measurements.
 </code></pre></div>
 
+<h3 id="icm20948">[icm20948]<a class="headerlink" href="#icm20948" title="Permanent link">&para;</a></h3>
+<p>Support for icm20948 accelerometers.</p>
+<div class="highlight"><pre><span></span><code>[icm20948]
+#i2c_address:
+#   Default is 104 (0x68). If AD0 is high, it would be 0x69 instead.
+#i2c_mcu:
+#i2c_bus:
+#i2c_software_scl_pin:
+#i2c_software_sda_pin:
+#i2c_speed: 400000
+#   See the &quot;common I2C settings&quot; section for a description of the
+#   above parameters. The default &quot;i2c_speed&quot; is 400000.
+#axes_map: x, y, z
+#   See the &quot;adxl345&quot; section for information on this parameter.
+</code></pre></div>
+
 <h3 id="lis2dw">[lis2dw]<a class="headerlink" href="#lis2dw" title="Permanent link">&para;</a></h3>
 <p>Support for LIS2DW accelerometers.</p>
 <div class="highlight"><pre><span></span><code>[lis2dw]
@@ -5828,6 +5858,9 @@ z_offset:
 sensor_type: ldc1612
 #   The sensor chip used to perform eddy current measurements. This
 #   parameter must be provided and must be set to ldc1612.
+#frequency:
+#   The external crystal frequency (in Hz) of the LDC1612 chip.
+#   The default is 12000000.
 #intb_pin:
 #   MCU gpio pin connected to the ldc1612 sensor&#39;s INTB pin (if
 #   available). The default is to not use the INTB pin.
