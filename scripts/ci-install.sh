@@ -25,28 +25,19 @@ sudo apt-get install ${PKGS}
 
 
 ######################################################################
-# Install (or build) pru gcc
+# Install pru gcc
 ######################################################################
 
 echo -e "\n\n=============== Install embedded pru gcc\n\n"
-PRU_FILE=${CACHE_DIR}/gnupru.tar.gz
-PRU_DIR=${BUILD_DIR}/pru-gcc
+PRU_ARCHIVE="pru-elf-2024.05.amd64.tar.xz"
+PRU_URL="https://github.com/dinuxbg/gnupru/releases/download/2024.05/${PRU_ARCHIVE}"
 
-if [ ! -f ${PRU_FILE} ]; then
-    cd ${BUILD_DIR}
-    git config --global user.email "you@example.com"
-    git config --global user.name "Your Name"
-    git clone https://github.com/dinuxbg/gnupru -b 2024.05 --depth 1
-    cd gnupru
-    export PREFIX=${PRU_DIR}
-    ./download-and-prepare.sh 2>&1 | pv -nli 30 > ${BUILD_DIR}/gnupru-build.log
-    ./build.sh 2>&1 | pv -nli 30 >> ${BUILD_DIR}/gnupru-build.log
-    cd ${BUILD_DIR}
-    tar cfz ${PRU_FILE} pru-gcc/
-else
-    cd ${BUILD_DIR}
-    tar xfz ${PRU_FILE}
+if [ ! -f ${CACHE_DIR}/${PRU_ARCHIVE} ]; then
+    wget "${PRU_URL}" -O "${CACHE_DIR}/${PRU_ARCHIVE}"
 fi
+cd ${BUILD_DIR}
+tar xJf ${CACHE_DIR}/${PRU_ARCHIVE}
+
 
 ######################################################################
 # Install or1k-linux-musl toolchain
@@ -63,6 +54,8 @@ if [ ! -f ${CACHE_DIR}/${TOOLCHAIN_ZIP_V} ]; then
 fi
 cd ${BUILD_DIR}
 tar xf ${CACHE_DIR}/${TOOLCHAIN_ZIP_V}
+
+
 ######################################################################
 # Create python3 virtualenv environment
 ######################################################################
