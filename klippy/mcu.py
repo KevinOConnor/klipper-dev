@@ -107,6 +107,7 @@ class MCU_trsync:
     REASON_HOST_REQUEST = 2
     REASON_PAST_END_TIME = 3
     REASON_COMMS_TIMEOUT = 4
+    REASON_SENSOR_SPECIFIC_CODE_START = 5
     def __init__(self, mcu, trdispatch):
         self._mcu = mcu
         self._trdispatch = trdispatch

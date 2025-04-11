@@ -303,7 +303,7 @@ class EddyGatherSamples:
 
 # Helper for implementing PROBE style commands (descend until trigger)
 class EddyEndstopWrapper:
-    REASON_SENSOR_ERROR = mcu.MCU_trsync.REASON_COMMS_TIMEOUT + 1
+    REASON_SENSOR_ERROR = mcu.MCU_trsync.REASON_SENSOR_SPECIFIC_CODE_START
     def __init__(self, config, sensor_helper, calibration):
         self._printer = config.get_printer()
         self._sensor_helper = sensor_helper
