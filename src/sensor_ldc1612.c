@@ -135,6 +135,7 @@ check_home(struct ldc1612 *ld, uint32_t data)
         trsync_do_trigger(ld->ts, ld->trigger_reason);
     }
     ld->homing_flags = homing_flags;
+    trsync_note_sensor_active(ld->ts);
 }
 
 // Chip registers

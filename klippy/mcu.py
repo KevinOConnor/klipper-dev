@@ -102,12 +102,15 @@ class CommandWrapper:
 # Wrapper classes for MCU pins
 ######################################################################
 
+TRSYNC_MIN_REPORT_TIME = 0.005
+
 class MCU_trsync:
     REASON_ENDSTOP_HIT = 1
     REASON_HOST_REQUEST = 2
     REASON_PAST_END_TIME = 3
     REASON_COMMS_TIMEOUT = 4
-    REASON_SENSOR_SPECIFIC_CODE_START = 5
+    REASON_SENSOR_TIMEOUT = 5
+    REASON_SENSOR_SPECIFIC_CODE_START = 6
     def __init__(self, mcu, trdispatch):
         self._mcu = mcu
         self._trdispatch = trdispatch
@@ -116,7 +119,8 @@ class MCU_trsync:
         self._trdispatch_mcu = None
         self._oid = mcu.create_oid()
         self._cmd_queue = mcu.alloc_command_queue()
-        self._trsync_start_cmd = self._trsync_set_timeout_cmd = None
+        self._trsync_start_cmd = self._trsync_start_old_cmd = None
+        self._trsync_set_timeout_cmd = None
         self._trsync_trigger_cmd = self._trsync_query_cmd = None
         self._stepper_stop_cmd = None
         self._trigger_completion = None
@@ -140,13 +144,22 @@ class MCU_trsync:
         mcu = self._mcu
         # Setup config
         mcu.add_config_cmd("config_trsync oid=%d" % (self._oid,))
-        mcu.add_config_cmd(
-            "trsync_start oid=%d report_clock=0 report_ticks=0 expire_reason=0"
-            % (self._oid,), on_restart=True)
         # Lookup commands
-        self._trsync_start_cmd = mcu.lookup_command(
+        self._trsync_start_old_cmd = mcu.try_lookup_command(
             "trsync_start oid=%c report_clock=%u report_ticks=%u"
             " expire_reason=%c", cq=self._cmd_queue)
+        if self._trsync_start_old_cmd is not None:
+            mcu.add_config_cmd(
+                "trsync_start oid=%d report_clock=0 report_ticks=0"
+                " expire_reason=0" % (self._oid,), on_restart=True)
+        else:
+            self._trsync_start_cmd = mcu.lookup_command(
+                "trsync_start oid=%c report_clock=%u report_ticks=%u"
+                " sensor_count=%c expire_reason=%c", cq=self._cmd_queue)
+            mcu.add_config_cmd(
+                "trsync_start oid=%d report_clock=0 report_ticks=0"
+                " sensor_count=0 expire_reason=0"
+                % (self._oid,), on_restart=True)
         self._trsync_set_timeout_cmd = mcu.lookup_command(
             "trsync_set_timeout oid=%c clock=%u", cq=self._cmd_queue)
         self._trsync_trigger_cmd = mcu.lookup_command(
@@ -190,23 +203,42 @@ class MCU_trsync:
                 self._trsync_trigger_cmd.send([self._oid,
                                                self.REASON_PAST_END_TIME])
     def start(self, print_time, report_offset,
-              trigger_completion, expire_timeout):
+              trigger_completion, expire_timeout, verify_sensor_time=None):
         self._trigger_completion = trigger_completion
         self._home_end_clock = None
+        # Calculate report_time
+        report_time = expire_timeout * .3
+        sensor_count = 0
+        if verify_sensor_time is not None:
+            if self._trsync_start_cmd is None:
+                raise self._mcu.get_printer().command_error(
+                    "MCU '%s' needs software update to use homing/probing"
+                    % (self._mcu.get_name(),))
+            report_time = min(report_time, 0.5 * verify_sensor_time)
+            report_time = max(report_time, TRSYNC_MIN_REPORT_TIME)
+            sensor_count = int(math.ceil(verify_sensor_time / report_time))
+            sensor_count = max(1, min(255, sensor_count))
+        # Send trsync_start command
         clock = self._mcu.print_time_to_clock(print_time)
         expire_ticks = self._mcu.seconds_to_clock(expire_timeout)
         expire_clock = clock + expire_ticks
-        report_ticks = self._mcu.seconds_to_clock(expire_timeout * .3)
+        report_ticks = self._mcu.seconds_to_clock(report_time)
         report_clock = clock + int(report_ticks * report_offset + .5)
-        min_extend_ticks = int(report_ticks * .8 + .5)
+        min_extend_ticks = int(expire_ticks * .25 + .5)
         ffi_main, ffi_lib = chelper.get_ffi()
         ffi_lib.trdispatch_mcu_setup(self._trdispatch_mcu, clock, expire_clock,
                                      expire_ticks, min_extend_ticks)
         self._mcu.register_response(self._handle_trsync_state,
                                     "trsync_state", self._oid)
-        self._trsync_start_cmd.send([self._oid, report_clock, report_ticks,
-                                     self.REASON_COMMS_TIMEOUT],
-                                    reqclock=report_clock)
+        if self._trsync_start_cmd is not None:
+            self._trsync_start_cmd.send(
+                [self._oid, report_clock, report_ticks, sensor_count,
+                 self.REASON_COMMS_TIMEOUT], reqclock=report_clock)
+        else:
+            self._trsync_start_old_cmd.send(
+                [self._oid, report_clock, report_ticks,
+                 self.REASON_COMMS_TIMEOUT], reqclock=report_clock)
+        # Setup steppers and begin trsync checking
         for s in self._steppers:
             self._stepper_stop_cmd.send([s.get_oid(), self._oid])
         self._trsync_set_timeout_cmd.send([self._oid, expire_clock],
@@ -256,7 +288,7 @@ class TriggerDispatch:
                                      " multi-mcu shared axis")
     def get_steppers(self):
         return [s for trsync in self._trsyncs for s in trsync.get_steppers()]
-    def start(self, print_time):
+    def start(self, print_time, verify_sensor_time=None):
         reactor = self._mcu.get_printer().get_reactor()
         self._trigger_completion = reactor.completion()
         expire_timeout = TRSYNC_TIMEOUT
@@ -264,8 +296,9 @@ class TriggerDispatch:
             expire_timeout = TRSYNC_SINGLE_MCU_TIMEOUT
         for i, trsync in enumerate(self._trsyncs):
             report_offset = float(i) / len(self._trsyncs)
-            trsync.start(print_time, report_offset,
-                         self._trigger_completion, expire_timeout)
+            trsync.start(print_time, report_offset, self._trigger_completion,
+                         expire_timeout, verify_sensor_time)
+            verify_sensor_time = None # Only first trsync has sensor
         etrsync = self._trsyncs[0]
         ffi_main, ffi_lib = chelper.get_ffi()
         ffi_lib.trdispatch_start(self._trdispatch, etrsync.REASON_HOST_REQUEST)
@@ -884,9 +917,9 @@ class MCU:
                              cq=None, is_async=False):
         return CommandQueryWrapper(self._serial, msgformat, respformat, oid,
                                    cq, is_async, self._printer.command_error)
-    def try_lookup_command(self, msgformat):
+    def try_lookup_command(self, msgformat, cq=None):
         try:
-            return self.lookup_command(msgformat)
+            return self.lookup_command(msgformat, cq)
         except self._serial.get_msgparser().error as e:
             return None
     def get_enumerations(self):

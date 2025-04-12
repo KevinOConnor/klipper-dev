@@ -1,6 +1,6 @@
 // Handling of synchronized "trigger" dispatch
 //
-// Copyright (C) 2016-2024  Kevin O'Connor <kevin@koconnor.net>
+// Copyright (C) 2016-2025  Kevin O'Connor <kevin@koconnor.net>
 //
 // This file may be distributed under the terms of the GNU GPLv3 license.
 
@@ -16,6 +16,7 @@ struct trsync {
     struct timer report_time, expire_time;
     uint32_t report_ticks;
     struct trsync_signal *signals;
+    uint8_t max_sensor_count, cur_sensor_count;
     uint8_t flags, trigger_reason, expire_reason;
 };
 
@@ -47,6 +48,21 @@ done:
     irq_restore(flag);
 }
 
+// Note the current sensor is active (caller must disable irqs)
+void
+trsync_note_sensor_active_noirq(struct trsync *ts)
+{
+    ts->cur_sensor_count = 0;
+}
+
+// Note the current sensor is active
+void
+trsync_note_sensor_active(struct trsync *ts)
+{
+    // All current mcu architectures have atomic 8-bit writes
+    trsync_note_sensor_active_noirq(ts);
+}
+
 // Timeout handler
 static uint_fast8_t
 trsync_expire_event(struct timer *t)
@@ -61,6 +77,9 @@ static uint_fast8_t
 trsync_report_event(struct timer *t)
 {
     struct trsync *ts = container_of(t, struct trsync, report_time);
+    if (ts->max_sensor_count && ts->cur_sensor_count >= ts->max_sensor_count)
+        trsync_do_trigger(ts, ts->expire_reason + 1);
+    ts->cur_sensor_count += 1;
     ts->flags |= TSF_REPORT;
     sched_wake_task(&trsync_wake);
     ts->report_time.waketime += ts->report_ticks;
@@ -125,12 +144,14 @@ command_trsync_start(uint32_t *args)
     ts->report_ticks = args[2];
     if (ts->report_ticks)
         sched_add_timer(&ts->report_time);
-    ts->expire_reason = args[3];
+    ts->max_sensor_count = args[3];
+    ts->cur_sensor_count = 0;
+    ts->expire_reason = args[4];
     irq_enable();
 }
 DECL_COMMAND(command_trsync_start,
              "trsync_start oid=%c report_clock=%u report_ticks=%u"
-             " expire_reason=%c");
+             " sensor_count=%c expire_reason=%c");
 
 void
 command_trsync_set_timeout(uint32_t *args)

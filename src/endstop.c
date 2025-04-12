@@ -32,6 +32,7 @@ endstop_event(struct timer *t)
     uint32_t nextwake = e->time.waketime + e->rest_time;
     if ((val ? ~e->flags : e->flags) & ESF_PIN_HIGH) {
         // No match - reschedule for the next attempt
+        trsync_note_sensor_active_noirq(e->ts);
         e->time.waketime = nextwake;
         return SF_RESCHEDULE;
     }
