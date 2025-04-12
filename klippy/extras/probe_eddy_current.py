@@ -324,7 +324,8 @@ class EddyEndstopWrapper:
                    triggered=True):
         self._trigger_time = 0.
         trigger_freq = self._calibration.height_to_freq(self._z_offset)
-        trigger_completion = self._dispatch.start(print_time)
+        trigger_completion = self._dispatch.start(
+            print_time, verify_sensor_time=0.020)
         self._sensor_helper.setup_home(
             print_time, trigger_freq, self._dispatch.get_oid(),
             mcu.MCU_trsync.REASON_ENDSTOP_HIT, self.REASON_SENSOR_ERROR)
