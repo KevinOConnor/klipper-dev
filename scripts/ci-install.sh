@@ -39,11 +39,11 @@ tar xJf ${CACHE_DIR}/${PRU_ARCHIVE}
 
 
 ######################################################################
-# Install or1k-linux toolchain
+# Install or1k toolchain
 ######################################################################
 
-echo -e "\n\n=============== Install or1k-linux toolchain\n\n"
-OR1K_ARCHIVE="or1k-linux-12.0.1-20220210-20220304.tar.xz"
+echo -e "\n\n=============== Install or1k toolchain\n\n"
+OR1K_ARCHIVE="or1k-elf-12.0.1-20220210-20220304.tar.xz"
 OR1K_REL="or1k-12.0.1-20220210-20220304"
 OR1K_URL="https://github.com/openrisc/or1k-gcc/releases/download/${OR1K_REL}/${OR1K_ARCHIVE}"
 if [ ! -f ${CACHE_DIR}/${OR1K_ARCHIVE} ]; then
