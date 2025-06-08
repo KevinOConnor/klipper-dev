@@ -49,7 +49,7 @@ GCC_VERSION=10
 TOOLCHAIN_ZIP_V=${TOOLCHAIN}-${GCC_VERSION}.tgz
 URL=https://more.musl.cc/${GCC_VERSION}/x86_64-linux-musl/
 if [ ! -f ${CACHE_DIR}/${TOOLCHAIN_ZIP_V} ]; then
-    wget "${URL}/${TOOLCHAIN_ZIP}" -O "${CACHE_DIR}/${TOOLCHAIN_ZIP_V}"
+    curl "${URL}/${TOOLCHAIN_ZIP}" -o "${CACHE_DIR}/${TOOLCHAIN_ZIP_V}"
 fi
 cd ${BUILD_DIR}
 tar xf ${CACHE_DIR}/${TOOLCHAIN_ZIP_V}
