@@ -262,6 +262,7 @@ class ToolHead:
             self.printer.send_event("toolhead:sync_print_time",
                                     curtime, est_print_time, self.print_time)
     def _process_lookahead(self, lazy=False):
+        logging.info("proc %s", lazy)
         moves = self.lookahead.flush(lazy=lazy)
         if not moves:
             return
@@ -274,6 +275,10 @@ class ToolHead:
         # Queue moves into trapezoid motion queue (trapq)
         next_move_time = self.print_time
         for move in moves:
+            logging.info("%s -> %s[%s]: st=%.6f t=%.6f,%.6f,%.6f",
+                         move.start_pos, move.end_pos, move.axes_r,
+                         next_move_time,
+                         move.accel_t, move.cruise_t, move.decel_t)
             if move.is_kinematic_move:
                 self.trapq_append(
                     self.trapq, next_move_time,

@@ -247,6 +247,9 @@ class PrinterExtruder:
         if axis_r > 0. and (move.axes_d[0] or move.axes_d[1]):
             can_pressure_advance = True
         # Queue movement (x is extruder movement, y is pressure advance flag)
+        logging.info("eta: sp=%.6f cpa=%d sv=%.6f cv=%.6f a=%.6f",
+                     move.start_pos[ea_index], can_pressure_advance,
+                     start_v, cruise_v, accel)
         self.trapq_append(self.trapq, print_time,
                           move.accel_t, move.cruise_t, move.decel_t,
                           move.start_pos[ea_index], 0., 0.,

@@ -147,6 +147,9 @@ class PrinterMotionQueuing:
         if not self.can_pause:
             clear_history_time = max(0., trapq_free_time - MOVE_HISTORY_EXPIRE)
         # Generate stepper movement and transmit
+        logging.info("flush ft=%.6f sg=%.6f cht=%.6f kfd=%.6f",
+                     flush_time, step_gen_time, clear_history_time,
+                     self.kin_flush_delay)
         ret = self.steppersyncmgr_gen_steps(self.steppersyncmgr, flush_time,
                                             step_gen_time, clear_history_time)
         if ret:
@@ -169,6 +172,7 @@ class PrinterMotionQueuing:
             self.reactor.pause(systime + min(1., wait))
     def flush_all_steps(self):
         flush_time = self.need_step_gen_time
+        logging.info("fat ft=%.6f kfd=%.6f", flush_time, self.kin_flush_delay)
         self._await_flush_time(flush_time)
         self._advance_flush_time(flush_time)
     def calc_step_gen_restart(self, est_print_time):
@@ -238,6 +242,8 @@ class PrinterMotionQueuing:
             self.printer.invoke_shutdown("Exception in flush_handler_debug")
         return self.reactor.NEVER
     def note_mcu_movequeue_activity(self, mq_time, is_step_gen=True):
+        logging.info("note mq=%.6f isg=%s kfd=%.6f", mq_time, is_step_gen,
+                     self.kin_flush_delay)
         if is_step_gen:
             mq_time += self.kin_flush_delay
             self.need_step_gen_time = max(self.need_step_gen_time, mq_time)
