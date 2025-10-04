@@ -4,7 +4,7 @@
 # Copyright (C) 2020  Dmitry Butyugin <dmbutyugin@google.com>
 #
 # This file may be distributed under the terms of the GNU GPLv3 license.
-import collections
+import collections, logging
 import chelper
 from . import shaper_defs
 
@@ -143,6 +143,7 @@ class InputShaper:
         if self.toolhead is None:
             # Klipper initialization is not yet completed
             return
+        logging.info("input_shaper _update_kinematics")
         self.toolhead.flush_step_generation()
         ffi_main, ffi_lib = chelper.get_ffi()
         kin = self.toolhead.get_kinematics()
@@ -156,6 +157,7 @@ class InputShaper:
         motion_queuing = self.printer.lookup_object("motion_queuing")
         motion_queuing.check_step_generation_scan_windows()
     def _update_input_shaping(self, error=None):
+        logging.info("input_shaper _update_input_shaping")
         self.toolhead.flush_step_generation()
         ffi_main, ffi_lib = chelper.get_ffi()
         kin = self.toolhead.get_kinematics()

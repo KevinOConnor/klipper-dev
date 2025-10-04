@@ -129,6 +129,8 @@ class PrinterMotionQueuing:
             pre_active = ffi_lib.itersolve_get_gen_steps_pre_active(sk)
             post_active = ffi_lib.itersolve_get_gen_steps_post_active(sk)
             kin_flush_delay = max(kin_flush_delay, pre_active, post_active)
+        logging.info("mq csgsw old=%.6f new=%.6f", self.kin_flush_delay,
+                     kin_flush_delay)
         self.kin_flush_delay = kin_flush_delay
     # Flush tracking
     def _handle_shutdown(self):

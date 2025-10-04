@@ -74,6 +74,8 @@ class ExtruderStepper:
         toolhead = self.printer.lookup_object("toolhead")
         ffi_main, ffi_lib = chelper.get_ffi()
         espa = ffi_lib.extruder_set_pressure_advance
+        logging.info("espa pa=%.6f ost=%.6f nst=%.6f",
+                     pressure_advance, old_smooth_time, new_smooth_time)
         if new_smooth_time != old_smooth_time:
             # Need full kinematic flush to change the smooth time
             toolhead.flush_step_generation()
