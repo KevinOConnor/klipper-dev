@@ -2616,9 +2616,14 @@ printer kinematics.
 #   will be used if a MANUAL_STEPPER command does not specify an ACCEL
 #   parameter. The default is zero.
 #endstop_pin:
+#endstop1_pin:
+#endstop2_pin:
+#endstop<n>_pin:
 #   Endstop switch detection pin. If specified, then one may perform
 #   "homing moves" by adding a STOP_ON_ENDSTOP parameter to
-#   MANUAL_STEPPER movement commands.
+#   MANUAL_STEPPER movement commands. Additional endstops may be
+#   specified, in which case one may use the ENDSTOP=n in the
+#   MANUAL_STEPPER command to specify which endstop to use.
 #position_min:
 #position_max:
 #   The minimum and maximum position the stepper can be commanded to

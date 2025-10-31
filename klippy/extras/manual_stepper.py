@@ -11,13 +11,24 @@ class ManualStepper:
     def __init__(self, config):
         self.printer = config.get_printer()
         self.name = config.get_name()
+        stepper_name = self.name.split()[1]
+        self.endstops = []
         if config.get('endstop_pin', None) is not None:
-            self.can_home = True
             self.rail = stepper.LookupRail(
                 config, need_position_minmax=False, default_position_endstop=0.)
+            self.endstops.append(self.rail.get_endstops()[0])
+            query_endstops = self.printer.lookup_object('query_endstops')
+            ppins = self.printer.lookup_object('pins')
+            for i in range(99):
+                epin = config.get('endstop%d_pin' % (i+1,), None)
+                if epin is None:
+                    break
+                mcu_endstop = ppins.setup_pin('endstop', epin)
+                for s in self.rail.get_steppers():
+                    mcu_endstop.add_stepper(s)
+                self.endstops.append((mcu_endstop, stepper_name + str(i+1)))
             self.steppers = self.rail.get_steppers()
         else:
-            self.can_home = False
             self.rail = stepper.PrinterStepper(config)
             self.steppers = [self.rail]
         self.velocity = config.getfloat('velocity', 5., above=0.)
@@ -37,7 +48,6 @@ class ManualStepper:
         self.instant_corner_v = 0.
         self.gaxis_limit_velocity = self.gaxis_limit_accel = 0.
         # Register commands
-        stepper_name = self.name.split()[1]
         gcode = self.printer.lookup_object('gcode')
         gcode.register_mux_command('MANUAL_STEPPER', "STEPPER",
                                    stepper_name, self.cmd_MANUAL_STEPPER,
@@ -79,13 +89,13 @@ class ManualStepper:
         if sync:
             self.sync_print_time()
     def do_homing_move(self, movepos, speed, accel,
-                       probe_pos, triggered, check_trigger):
-        if not self.can_home:
+                       probe_pos, triggered, check_trigger, endstop_num):
+        if endstop_num >= len(self.endstops):
             raise self.printer.command_error(
                 "No endstop for this manual stepper")
         self.homing_accel = accel
         pos = [movepos, 0., 0., 0.]
-        endstops = self.rail.get_endstops()
+        endstops = [self.endstops[endstop_num]]
         phoming = self.printer.lookup_object('homing')
         phoming.manual_home(self, endstops, pos, speed,
                             probe_pos, triggered, check_trigger)
@@ -124,8 +134,10 @@ class ManualStepper:
             if ((self.pos_min is not None and movepos < self.pos_min)
                 or (self.pos_max is not None and movepos > self.pos_max)):
                 raise gcmd.error("Move out of range")
+            enum = gcmd.get_int('ENDSTOP', 0, minval=0,
+                                maxval=len(self.endstops)-1)
             self.do_homing_move(movepos, speed, accel,
-                                is_probe, not is_inverted, not is_try)
+                                is_probe, not is_inverted, not is_try, enum)
         elif gcmd.get_float('MOVE', None) is not None:
             movepos = gcmd.get_float('MOVE')
             if ((self.pos_min is not None and movepos < self.pos_min)

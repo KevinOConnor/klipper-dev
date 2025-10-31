@@ -1014,9 +1014,14 @@ uses SYNC=0 then future G-Code movement commands may run in parallel
 with the stepper movement.
 
 `MANUAL_STEPPER STEPPER=config_name [SPEED=<speed>] [ACCEL=<accel>]
-MOVE=<pos> STOP_ON_ENDSTOP=<check_type>`: If STOP_ON_ENDSTOP is
-specified then the move will end early if an endstop event occurs. The
-`STOP_ON_ENDSTOP` parameter may be set to one of the following values:
+MOVE=<pos> STOP_ON_ENDSTOP=<check_type> [ENDSTOP=<num>]`: If
+STOP_ON_ENDSTOP is specified then the move will end early if an
+endstop event occurs. If multiple endstops are specified in the config
+then one may use the `ENDSTOP=` parameter to specify which endstop to
+use during a `STOP_ON_ENDSTOP` move (the default is 0 which
+corresponds to the endstop defined as `endstop_pin` in the
+config). The `STOP_ON_ENDSTOP` parameter may be set to one of the
+following values:
 
 * `probe`: The movement will stop when the endstop reports triggered.
 * `home`: The movement will stop when the endstop reports triggered
