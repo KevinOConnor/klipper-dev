@@ -130,11 +130,14 @@ cancel_homing(struct ldc1612 *ld, int error_code)
     trsync_do_trigger(ld->ts, ld->error_reason + error_code);
 }
 
+#define DATA_ERROR_AMPLITUDE (1L << 28)
+
 // Perform additional data integrity checks during homing
 static int
 check_homing_data_bits(struct ldc1612 *ld, uint32_t raw_data)
 {
-    if (raw_data < 0x0fffffff)
+    uint32_t data = raw_data & ~DATA_ERROR_AMPLITUDE;
+    if (data < 0x0fffffff)
         return 0;
     cancel_homing(ld, SE_SENSOR_ERROR);
     return -1;

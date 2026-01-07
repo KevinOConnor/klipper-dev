@@ -181,7 +181,10 @@ class LDC1612:
                     continue
                 # Sensor reports non-fatal error (top 4 bits contain code)
                 error_bits = (val >> 28) & 0x0f
-                log_once("Sensor reports error (%s)" % (bin(error_bits),))
+                if error_bits == 1:
+                    log_once("Sensor reports amplitude warning")
+                else:
+                    log_once("Sensor reports error (%s)" % (bin(error_bits),))
             samples[count] = (round(ptime, 6), round(freq_conv * mv, 3), 999.9)
             count += 1
         del samples[count:]
