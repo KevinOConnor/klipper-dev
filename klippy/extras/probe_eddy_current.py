@@ -656,8 +656,8 @@ class EddyTap:
         rel_err = -sum([c[0]*a[0] for c, a in zip(coeffs, eqst_ans)])
         return rel_err, coeffs
     def _find_least_squares(self, data):
-        #for d in data:
-        #    logging.info("sample: freq=%.3f z=%.6f", d[0], d[1][2])
+        for d in data:
+            logging.info("sample: freq=%.3f z=%.6f", d[0], d[1][2])
         self._least_squares_cache.clear()
         # Change base of freq/z measurements to improve numerical stability
         base_z = .5 * (data[0][1][2] + data[-1][1][2])
@@ -697,7 +697,7 @@ class EddyTap:
         final_coeffs = (base_z + best_z,
                         base_freq + bc[0] + best_z*bc[2] + best_z*best_z*bc[3],
                         bc[1], bc[2] + 2.*best_z*bc[3], bc[3])
-        #logging.info("probe_analysis: coeffs=%s", final_coeffs)
+        logging.info("probe_analysis: coeffs=%s", final_coeffs)
         return final_coeffs
     def _error_detect(self, msg):
         raise self._printer.command_error("Unable to detect tap: %s" % (msg,))
