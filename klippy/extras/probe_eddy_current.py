@@ -595,7 +595,7 @@ class EddyTap:
             eq = eqs[i]
             eq[0] = 1.
             eq[1] = tool_pos[2]
-            #logging.info("sample: freq=%.3f z=%.6f", sensor_freq, tool_pos[2])
+            logging.info("sample: freq=%.3f z=%.6f", sensor_freq, tool_pos[2])
         # Run least squares with various z values to reduce residual error
         min_z = best_z = eqs[0][1]
         max_z = eqs[-1][1]
@@ -625,8 +625,8 @@ class EddyTap:
                 else:
                     min_z = guess_z
         best_coeffs = [float(v) for v in best_coeffs]
-        #logging.info("best: z=%.6f err=%.6f coeffs=%s",
-        #             best_z, best_err, best_coeffs)
+        logging.info("best: z=%.6f err=%.6f coeffs=%s",
+                     best_z, best_err, best_coeffs)
         return float(best_z), best_coeffs
     def _analyze_pullback(self, measures, start_time, end_time):
         self._validate_samples_time(measures, start_time, end_time)
