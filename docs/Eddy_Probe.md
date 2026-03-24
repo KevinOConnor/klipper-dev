@@ -137,8 +137,8 @@ PROBE METHOD=tap
 
 Here is an example sequence of threshold values to test:
 ```
-1 -> 5 -> 10 -> 20 -> 40 -> 80 -> 160
-160 -> 120 -> 100
+50 -> 250 -> 500 -> 1000 -> 2000 -> 4000 -> 8000
+8000 -> 6000 -> 5000
 ```
 Your value will normally be between those.
 - Too high a value leaves a less safe margin for early collision -
@@ -156,8 +156,8 @@ z: 1.010 # noise 0.000400mm, MAD_Hz=14.000
 ```
 The estimation will be:
 ```
-MAD_Hz * 2
-11.314 * 2 = 22.628
+MAD_Hz * 100
+11.314 * 100 = 113.14
 ```
 
 To further fine tune threshold, one can use `PROBE_ACCURACY METHOD=tap`.
@@ -173,8 +173,7 @@ the speed of the descent.
 If you take 24 photos per second of the moving train, you can only estimate
 where the train was between photos.
 
-It is possible to reduce the descending speed. It may require decrease of
-absolute `tap_threshold` value.
+It is possible to reduce the descending speed.
 
 It is possible to tap over non-conductive surfaces as long as there is metal
 behind it within the sensor's sensitivity range.

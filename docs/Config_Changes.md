@@ -8,6 +8,13 @@ All dates in this document are approximate.
 
 ## Changes
 
+20260420: The handling of the `[probe_eddy_current]` `tap_threshold`
+config option and associated `TAP_THRESHOLD` G-Code parameter has
+changed. It will be necessary to recalibrate the value. A good
+starting point is to set `tap_threshold` to 50 times the previous
+setting. See the [eddy probe documentation](Eddy_Probe.md) for
+information.
+
 20260408: The script `lib/canboot/flash_can.py` has been updated to
 the most current version from
 [Katapult](https://github.com/Arksine/katapult) and as such renamed to
