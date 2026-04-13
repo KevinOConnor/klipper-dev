@@ -529,16 +529,19 @@ class EddyTap:
         if not self._tap_threshold:
             raise self._printer.command_error("Tap not configured")
         params = self._param_helper.get_probe_params(gcmd)
+        # Setup mcu filter (scale internal values to milli-hz)
         sos_filter = self._trigger_analog.get_sos_filter()
         sos_filter.set_filter_design(self._filter_design)
-        sos_filter.set_offset_scale(0, 1., auto_offset=True)
+        FRAC_HZ = 1000.
+        s = FRAC_HZ*1000000. / self._sensor_helper.convert_frequency(1000000.)
+        sos_filter.set_offset_scale(0, s, scale_frac_bits=16, auto_offset=True)
         self._trigger_analog.set_raw_range(0, MAX_VALID_RAW_VALUE)
+        # Set mcu trigger to tap_threshold
         tap_threshold = gcmd.get_float("TAP_THRESHOLD",
                                        self._tap_threshold, above=0.)
         sps = self._sensor_helper.get_samples_per_second()
-        samp_thresh = tap_threshold * params['probe_speed'] / sps
-        raw_threshold = self._sensor_helper.convert_frequency(samp_thresh)
-        self._trigger_analog.set_trigger('diff_peak_gt', raw_threshold)
+        samp_thresh = FRAC_HZ * tap_threshold * params['probe_speed'] / sps
+        self._trigger_analog.set_trigger('diff_peak_gt', int(samp_thresh + 0.5))
         self._current_tap_threshold = tap_threshold
     # Measurement analysis to determine "tap" position
     def _validate_samples_time(self, measures, start_time, end_time):
