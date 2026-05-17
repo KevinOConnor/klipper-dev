@@ -4,6 +4,7 @@
 #
 # This file may be distributed under the terms of the GNU GPLv3 license.
 import logging, math
+import mathutil
 from . import bus, bulk_sensor
 
 MIN_MSG_TIME = 0.100
@@ -23,10 +24,14 @@ class AngleCalibration:
         if self.stepper_name is None:
             # No calibration
             return
-        try:
-            import numpy
-        except:
-            raise config.error("Angle calibration requires numpy module")
+        #reactor = self.printer.get_reactor()
+        #st = reactor.monotonic()
+        #try:
+        #    import numpy
+        #except:
+        #    raise config.error("Angle calibration requires numpy module")
+        #et = reactor.monotonic()
+        #logging.info("angle import time %.6f", et - st)
         sconfig = config.getsection(self.stepper_name)
         sconfig.getint('microsteps', note_valid=False)
         self.tmc_module = self.mcu_stepper = None
@@ -110,9 +115,14 @@ class AngleCalibration:
             angles = list(reversed(angles))
         first_step = angles.index(min(angles))
         angles = angles[first_step:] + angles[:first_step]
-        import numpy
-        eqs = numpy.zeros((full_steps, calibration_count))
-        ans = numpy.zeros((full_steps,))
+        reactor = self.printer.get_reactor()
+        times = []
+        times.append(reactor.monotonic())
+        #import numpy
+        #eqs = numpy.zeros((full_steps, calibration_count))
+        #ans = numpy.zeros((full_steps,))
+        eqs = [[0.]*calibration_count for i in range(full_steps)]
+        ans = [[0.] for i in range(full_steps)]
         for step, angle in enumerate(angles):
             int_angle = int(angle + .5) % angle_max
             bucket = int(int_angle / bucket_size)
@@ -122,11 +132,31 @@ class AngleCalibration:
             eq = eqs[step]
             eq[bucket] = 1. - ang_diff_per
             eq[(bucket + 1) % calibration_count] = ang_diff_per
-            ans[step] = float(step * nominal_step)
+            #ans[step] = float(step * nominal_step)
+            ans[step][0] = float(step * nominal_step)
             if bucket + 1 >= calibration_count:
-                ans[step] -= ang_diff_per * angle_max
-        sol = numpy.linalg.lstsq(eqs, ans, rcond=None)[0]
-        isol = [int(s + .5) for s in sol]
+                #ans[step] -= ang_diff_per * angle_max
+                ans[step][0] -= ang_diff_per * angle_max
+        times.append(reactor.monotonic())
+        #sol = numpy.linalg.lstsq(eqs, ans, rcond=None)[0]
+        #sol = mathutil.solve_linear_equations(eqs, ans)
+        eqst = mathutil.mat_transp(eqs)
+        times.append(reactor.monotonic())
+        eqst_eqs = mathutil.mat_mul_transp(eqst)
+        times.append(reactor.monotonic())
+        eqst_ans = mathutil.mat_mat_mul(eqst, ans)
+        times.append(reactor.monotonic())
+        sol = mathutil.gaussian_solve(eqst_eqs, eqst_ans)
+        times.append(reactor.monotonic())
+        tdiff = [times[i] - times[i-1] for i in range(1, len(times))]
+        logging.info("angle calc %s: time %.6f (%s)", self.name,
+                     times[-1] - times[0],
+                     " ".join(["%.6f" % t for t in tdiff]))
+        #isol = [int(s + .5) for s in sol]
+        if sol is None:
+            raise self.printer.config_error("Invalid angle calibration config")
+        isol = [int(s[0] + .5) for s in sol]
+        logging.info("res %s", isol[:10])
         self.calibration = isol + [isol[0] + angle_max]
     def lookup_tmc(self):
         for driver in TRINAMIC_DRIVERS:
