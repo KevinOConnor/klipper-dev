@@ -170,6 +170,10 @@ def gaussian_solve(a, rhs, allow_underdetermined=False):
     res = list(rhs)
     m = list(a)
     rows_m = len(m)
+    lu = [None] * rows_m
+    zeroed_cols = [[] for i in range(rows_m)]
+    rest = [[] for i in range(len(res[0]))]
+    mul = operator.mul
     # Perform the LU-decomposition through Gaussian elimination
     for i in range(rows_m-1, -1, -1):
         # Find a pivot and swap the corresponding rows
@@ -187,24 +191,26 @@ def gaussian_solve(a, rhs, allow_underdetermined=False):
             recipr = 0.
         else:
             recipr = 1. / m_i[i]
-        m[i] = m_i = [m_i_j * recipr for m_i_j in m_i[:i]]
-        res[i] = res_i = [res_i_k * recipr for res_i_k in res[i]]
+        lu[i] = m_i = [m_i_j * recipr for m_i_j in m_i[:i]]
+        zeroed_cols_i = zeroed_cols[i]
+        for rest_k, res_i_k in zip(rest, res[i]):
+            s = sum(map(mul, zeroed_cols_i, rest_k))
+            rest_k.append(recipr * (res_i_k - s))
 
         # Zero-out the last column in rows prior to i, and remove last column
         for j in range(i):
             m_j = m[j]
             c = m_j[i]
+            zeroed_cols[j].append(c)
             m[j] = [m_j_k - c * m_i_k for m_j_k, m_i_k in zip(m_j, m_i)]
-            res[j] = [res_j_k - c * res_i_k
-                      for res_j_k, res_i_k in zip(res[j], res_i)]
 
     # Solve the system with the lower-triangular matrix
-    rest = mat_transp(res)
     if not rest:
         return res
     for rest_k in rest:
+        rest_k.reverse()
         for i in range(1, rows_m):
-            rest_k[i] -= sum(map(operator.mul, m[i], rest_k[:i]))
+            rest_k[i] -= sum(map(mul, lu[i], rest_k[:i]))
     return mat_transp(rest)
 
 def pseudo_inverse(m):
