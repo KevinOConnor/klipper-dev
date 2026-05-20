@@ -177,21 +177,21 @@ def gaussian_solve(a, rhs, allow_underdetermined=False):
     # Perform the LU-decomposition through Gaussian elimination
     for i in range(rows_m-1, -1, -1):
         # Find a pivot and swap the corresponding rows
-        abs_col = [abs(m_j[i]) for m_j in m[:i+1]]
-        j = abs_col.index(max(abs_col))
+        last_col = [m_j[i] for m_j in m[:i+1]]
+        last_col_max_abs = max(last_col, key=abs)
+        j = last_col.index(last_col_max_abs)
         if i != j:
             m[i], m[j] = m[j], m[i]
             res[i], res[j] = res[j], res[i]
 
         # Scale the i-th row (and drop last column)
-        m_i = m[i]
-        if abs(m_i[i]) < 1e-10:
+        if abs(last_col_max_abs) < 1e-10:
             if not allow_underdetermined:
                 return None
             recipr = 0.
         else:
-            recipr = 1. / m_i[i]
-        lu[i] = m_i = [m_i_j * recipr for m_i_j in m_i[:i]]
+            recipr = 1. / last_col_max_abs
+        lu[i] = m_i = [m_i_j * recipr for m_i_j in m[i][:i]]
         zeroed_cols_i = zeroed_cols[i]
         for rest_k, res_i_k in zip(rest, res[i]):
             s = sum(map(mul, zeroed_cols_i, rest_k))
