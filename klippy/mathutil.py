@@ -169,20 +169,26 @@ def mat_mul_transp(a):
     return res
 
 def gaussian_solve(a, rhs, allow_underdetermined=False):
-    res = list(rhs)
+    # Copy input (so rows can be reordered)
     m = list(a)
+    res = list(rhs)
     rows_m = len(m)
+
+    # LU-decomposition storage
     lu = [None] * rows_m
-    lut = [[] for i in range(rows_m)]
-    zerot = [[] for i in range(rows_m)]
     rest = [[] for i in range(len(res[0]))]
+
+    # Internal storage to defer the zeroing of columns
+    lut = [[] for i in range(rows_m)]
+    zero = [[] for i in range(rows_m)]
     mul = operator.mul
+
     # Perform the LU-decomposition through Gaussian elimination
     for i in range(rows_m-1, -1, -1):
         # Build i'th column by applying zero column scaling from previous loops
         lut_i = lut.pop()
-        cur_col = [m_j[i] - sum(map(mul, lut_i, zerot_j))
-                   for m_j, zerot_j in zip(m, zerot)]
+        cur_col = [m_j[i] - sum(map(mul, lut_i, zero_j))
+                   for m_j, zero_j in zip(m, zero)]
 
         # Find a pivot and swap the corresponding rows
         cur_col_max_abs = max(cur_col, key=abs)
@@ -200,17 +206,17 @@ def gaussian_solve(a, rhs, allow_underdetermined=False):
             recipr = 1. / cur_col_max_abs
 
         # Apply zero column scaling and recipr scaling to i'th row
-        zerot_i = zerot.pop()
-        lu[i] = lu_i = [recipr * (m_i_j - sum(map(mul, lut_j, zerot_i)))
+        zero_i = zero.pop()
+        lu[i] = lu_i = [recipr * (m_i_j - sum(map(mul, zero_i, lut_j)))
                         for m_i_j, lut_j in zip(m[i], lut)]
         for rest_k, res_i_k in zip(rest, res[i]):
-            s = sum(map(mul, zerot_i, rest_k))
+            s = sum(map(mul, zero_i, rest_k))
             rest_k.append(recipr * (res_i_k - s))
 
-        # Also store results in transposed format to simplify future loops
-        for zerot_j, cur_col_j in zip(zerot, cur_col):
-            zerot_j.append(cur_col_j)
-        for lut_j, lu_i_j in zip(lut, lu_i):
+        # Traditional algo would zero the i'th column here, but instead store
+        # information to defer column zeroing impact to future iterations.
+        for zero_j, cur_col_j, lut_j, lu_i_j in zip(zero, cur_col, lut, lu_i):
+            zero_j.append(cur_col_j)
             lut_j.append(lu_i_j)
 
     # Solve the system with the lower-triangular matrix
