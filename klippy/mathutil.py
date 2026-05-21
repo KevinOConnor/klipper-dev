@@ -151,14 +151,16 @@ def mat_mat_mul(a, b):
     if len(a[0]) != len(b):
         return None
     bt = mat_transp(b)
-    return [[sum(map(operator.mul, a_i, bt_j))
+    mul = operator.mul
+    return [[sum(map(mul, a_i, bt_j))
              for bt_j in bt]
             for a_i in a]
 
 # Optimized version of mat_mat_mul(a, mat_transp(a))
 def mat_mul_transp(a):
     # Resulting matrix is symmetric - compute lower-left
-    res = [[sum(map(operator.mul, a_i, a_j))
+    mul = operator.mul
+    res = [[sum(map(mul, a_i, a_j))
             for a_j in a[:i+1]]
            for i, a_i in enumerate(a)]
     # Fill in upper right of matrix
