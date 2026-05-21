@@ -178,9 +178,9 @@ def gaussian_solve(a, rhs, allow_underdetermined=False):
     # Perform the LU-decomposition through Gaussian elimination
     for i in range(rows_m-1, -1, -1):
         # Build i'th column by applying zero column scaling from previous loops
-        lut_i = lut[i]
+        lut_i = lut.pop()
         cur_col = [m_j[i] - sum(map(mul, lut_i, zerot_j))
-                   for m_j, zerot_j in zip(m[:i+1], zerot)]
+                   for m_j, zerot_j in zip(m, zerot)]
 
         # Find a pivot and swap the corresponding rows
         cur_col_max_abs = max(cur_col, key=abs)
@@ -198,15 +198,14 @@ def gaussian_solve(a, rhs, allow_underdetermined=False):
             recipr = 1. / cur_col_max_abs
 
         # Apply zero column scaling and recipr scaling to i'th row
-        zerot_i = zerot[i]
+        zerot_i = zerot.pop()
         lu[i] = lu_i = [recipr * (m_i_j - sum(map(mul, lut_j, zerot_i)))
-                        for m_i_j, lut_j in zip(m[i][:i], lut)]
+                        for m_i_j, lut_j in zip(m[i], lut)]
         for rest_k, res_i_k in zip(rest, res[i]):
             s = sum(map(mul, zerot_i, rest_k))
             rest_k.append(recipr * (res_i_k - s))
 
         # Also store results in transposed format to simplify future loops
-        cur_col.pop()
         for zerot_j, cur_col_j in zip(zerot, cur_col):
             zerot_j.append(cur_col_j)
         for lut_j, lu_i_j in zip(lut, lu_i):
