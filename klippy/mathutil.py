@@ -171,47 +171,46 @@ def gaussian_solve(a, rhs, allow_underdetermined=False):
     m = list(a)
     rows_m = len(m)
     lu = [None] * rows_m
-    lu_cols = [[] for i in range(rows_m)]
-    zeroed_cols = [[] for i in range(rows_m)]
+    lut = [[] for i in range(rows_m)]
+    zerot = [[] for i in range(rows_m)]
     rest = [[] for i in range(len(res[0]))]
     mul = operator.mul
     # Perform the LU-decomposition through Gaussian elimination
     for i in range(rows_m-1, -1, -1):
         # Build i'th column by applying zero column scaling from previous loops
-        lu_cols_i = lu_cols[i]
-        last_col = [m_j[i] - sum(map(mul, lu_cols_i, zeroed_cols_j))
-                    for m_j, zeroed_cols_j in zip(m[:i+1], zeroed_cols)]
+        lut_i = lut[i]
+        cur_col = [m_j[i] - sum(map(mul, lut_i, zerot_j))
+                   for m_j, zerot_j in zip(m[:i+1], zerot)]
 
         # Find a pivot and swap the corresponding rows
-        last_col_max_abs = max(last_col, key=abs)
-        j = last_col.index(last_col_max_abs)
+        cur_col_max_abs = max(cur_col, key=abs)
+        j = cur_col.index(cur_col_max_abs)
         if i != j:
             m[i], m[j] = m[j], m[i]
             res[i], res[j] = res[j], res[i]
 
         # Determine scale for the i'th row
-        if abs(last_col_max_abs) < 1e-10:
+        if abs(cur_col_max_abs) < 1e-10:
             if not allow_underdetermined:
                 return None
             recipr = 0.
         else:
-            recipr = 1. / last_col_max_abs
+            recipr = 1. / cur_col_max_abs
 
         # Apply zero column scaling and recipr scaling to i'th row
-        zeroed_cols_i = zeroed_cols[i]
-        lu[i] = lu_i = [
-            recipr * (m_i_j - sum(map(mul, lu_cols_j, zeroed_cols_i)))
-            for m_i_j, lu_cols_j in zip(m[i][:i], lu_cols)]
+        zerot_i = zerot[i]
+        lu[i] = lu_i = [recipr * (m_i_j - sum(map(mul, lut_j, zerot_i)))
+                        for m_i_j, lut_j in zip(m[i][:i], lut)]
         for rest_k, res_i_k in zip(rest, res[i]):
-            s = sum(map(mul, zeroed_cols_i, rest_k))
+            s = sum(map(mul, zerot_i, rest_k))
             rest_k.append(recipr * (res_i_k - s))
 
         # Also store results in transposed format to simplify future loops
-        last_col.pop()
-        for zeroed_cols_j, last_col_j in zip(zeroed_cols, last_col):
-            zeroed_cols_j.append(last_col_j)
-        for lu_cols_j, lu_i_j in zip(lu_cols, lu_i):
-            lu_cols_j.append(lu_i_j)
+        cur_col.pop()
+        for zerot_j, cur_col_j in zip(zerot, cur_col):
+            zerot_j.append(cur_col_j)
+        for lut_j, lu_i_j in zip(lut, lu_i):
+            lut_j.append(lu_i_j)
 
     # Solve the system with the lower-triangular matrix
     if not rest:
