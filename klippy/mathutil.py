@@ -174,7 +174,7 @@ def gaussian_solve(a, rhs, allow_underdetermined=False):
     res = list(rhs)
     rows_m = len(m)
 
-    # LU-decomposition storage
+    # LU-decomposition results
     lu = [None] * rows_m
     rest = [[] for i in range(len(res[0]))]
 
@@ -196,6 +196,8 @@ def gaussian_solve(a, rhs, allow_underdetermined=False):
         if i != j:
             m[i], m[j] = m[j], m[i]
             res[i], res[j] = res[j], res[i]
+            zero[i], zero[j] = zero[j], zero[i]
+            cur_col[j] = cur_col[i]
 
         # Determine scale for the i'th row
         if abs(cur_col_max_abs) < 1e-10:
