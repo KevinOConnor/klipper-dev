@@ -175,20 +175,20 @@ def gaussian_solve(a, rhs, allow_underdetermined=False):
     rows_m = len(m)
 
     # LU-decomposition results
-    lu = [None] * rows_m
+    lower = [None] * rows_m
     rest = [[] for i in range(len(res[0]))]
 
     # Internal storage to defer the zeroing of columns
-    lut = [[] for i in range(rows_m)]
-    zero = [[] for i in range(rows_m)]
+    lowert = [[] for i in range(rows_m)]
+    upper = [[] for i in range(rows_m)]
     mul = operator.mul
 
     # Perform the LU-decomposition through Gaussian elimination
     for i in range(rows_m-1, -1, -1):
         # Build i'th column by applying zero column scaling from previous loops
-        lut_i = lut.pop()
-        cur_col = [m_j[i] - sum(map(mul, lut_i, zero_j))
-                   for m_j, zero_j in zip(m, zero)]
+        lowert_i = lowert.pop()
+        cur_col = [m_j[i] - sum(map(mul, lowert_i, upper_j))
+                   for m_j, upper_j in zip(m, upper)]
 
         # Find a pivot and swap the corresponding rows
         cur_col_max_abs = max(cur_col, key=abs)
@@ -196,7 +196,7 @@ def gaussian_solve(a, rhs, allow_underdetermined=False):
         if i != j:
             m[i], m[j] = m[j], m[i]
             res[i], res[j] = res[j], res[i]
-            zero[i], zero[j] = zero[j], zero[i]
+            upper[i], upper[j] = upper[j], upper[i]
             cur_col[j] = cur_col[i]
 
         # Determine scale for the i'th row
@@ -208,18 +208,19 @@ def gaussian_solve(a, rhs, allow_underdetermined=False):
             recipr = 1. / cur_col_max_abs
 
         # Apply zero column scaling and recipr scaling to i'th row
-        zero_i = zero.pop()
-        lu[i] = lu_i = [recipr * (m_i_j - sum(map(mul, zero_i, lut_j)))
-                        for m_i_j, lut_j in zip(m[i], lut)]
+        upper_i = upper.pop()
+        lower[i] = lower_i = [recipr*(m_i_j - sum(map(mul, upper_i, lowert_j)))
+                              for m_i_j, lowert_j in zip(m[i], lowert)]
         for rest_k, res_i_k in zip(rest, res[i]):
-            s = sum(map(mul, zero_i, rest_k))
+            s = sum(map(mul, upper_i, rest_k))
             rest_k.append(recipr * (res_i_k - s))
 
         # Traditional algo would zero the i'th column here, but instead store
         # information to defer column zeroing impact to future iterations.
-        for zero_j, cur_col_j, lut_j, lu_i_j in zip(zero, cur_col, lut, lu_i):
-            zero_j.append(cur_col_j)
-            lut_j.append(lu_i_j)
+        for upper_j, cur_col_j, lowert_j, lower_i_j in zip(
+                upper, cur_col, lowert, lower_i):
+            upper_j.append(cur_col_j)
+            lowert_j.append(lower_i_j)
 
     # Solve the system with the lower-triangular matrix
     if not rest:
@@ -227,7 +228,7 @@ def gaussian_solve(a, rhs, allow_underdetermined=False):
     for rest_k in rest:
         rest_k.reverse()
         for i in range(1, rows_m):
-            rest_k[i] -= sum(map(mul, lu[i], rest_k[:i]))
+            rest_k[i] -= sum(map(mul, lower[i], rest_k[:i]))
     return mat_transp(rest)
 
 def pseudo_inverse(m):
