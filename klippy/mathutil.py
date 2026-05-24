@@ -189,7 +189,7 @@ def solve_ldlt(a, rhs, allow_underdetermined=False):
         cur_col_i = cur_col.pop()
 
         # Determine scale for the i'th row
-        if m[i][i] < 1e-10:
+        if abs(cur_col_i) < 1e-20:
             if not allow_underdetermined:
                 return None
             recipr = 0.
