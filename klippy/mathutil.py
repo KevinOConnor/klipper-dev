@@ -157,15 +157,12 @@ def mat_mat_mul(a, b):
             for a_i in a]
 
 # Optimized version of mat_mat_mul(a, mat_transp(a))
-def mat_mul_transp(a):
+def mat_mul_transp_lower(a):
     # Resulting matrix is symmetric - compute lower-left
     mul = operator.mul
     res = [[sum(map(mul, a_i, a_j))
             for a_j in a[:i+1]]
            for i, a_i in enumerate(a)]
-    # Fill in upper right of matrix
-    for i, res_i in enumerate(res):
-        res_i.extend([res_j[i] for res_j in res[i+1:]])
     return res
 
 def solve_ldlt(a, rhs, allow_underdetermined=False):
@@ -224,12 +221,12 @@ def solve_ldlt(a, rhs, allow_underdetermined=False):
 
 def pseudo_inverse(m):
     mt = mat_transp(m)
-    mtm = mat_mul_transp(mt)
+    mtm = mat_mul_transp_lower(mt)
     return solve_ldlt(mtm, mt)
 
 # Find least squares solution for a set of linear equations
 def solve_linear_equations(eqs, ans, allow_underdetermined=False):
     eqst = mat_transp(eqs)
-    eqst_eqs = mat_mul_transp(eqst)
+    eqst_eqs = mat_mul_transp_lower(eqst)
     eqst_ans = mat_mat_mul(eqst, ans)
     return solve_ldlt(eqst_eqs, eqst_ans, allow_underdetermined)

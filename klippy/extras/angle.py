@@ -142,7 +142,7 @@ class AngleCalibration:
         #sol = mathutil.solve_linear_equations(eqs, ans)
         eqst = mathutil.mat_transp(eqs)
         times.append(reactor.monotonic())
-        eqst_eqs = mathutil.mat_mul_transp(eqst)
+        eqst_eqs = mathutil.mat_mul_transp_lower(eqst)
         times.append(reactor.monotonic())
         eqst_ans = mathutil.mat_mat_mul(eqst, ans)
         times.append(reactor.monotonic())
