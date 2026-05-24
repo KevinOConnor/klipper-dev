@@ -798,12 +798,12 @@ class EddyTap:
         return eqst_eqs, eqst_ans
     def _calc_least_squares(self, samples, est_z_contact):
         eqst_eqs, eqst_ans = self._build_ls_matrix_opt(samples, est_z_contact)
-        coeffs = mathutil.gaussian_solve(eqst_eqs, eqst_ans)
+        coeffs = mathutil.solve_ldlt(eqst_eqs, eqst_ans)
         if coeffs is not None and coeffs[3][0] < 0.:
             # z**2 factor can't be negative - retry using only linear
             alt_eqst_eqs = [ee[:3] for ee in eqst_eqs[:3]]
             alt_eqst_ans = eqst_ans[:3]
-            coeffs = mathutil.gaussian_solve(alt_eqst_eqs, alt_eqst_ans)
+            coeffs = mathutil.solve_ldlt(alt_eqst_eqs, alt_eqst_ans)
             if coeffs is not None:
                 coeffs = coeffs + [[0.]]
         if coeffs is None:

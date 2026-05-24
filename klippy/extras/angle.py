@@ -146,7 +146,7 @@ class AngleCalibration:
         times.append(reactor.monotonic())
         eqst_ans = mathutil.mat_mat_mul(eqst, ans)
         times.append(reactor.monotonic())
-        sol = mathutil.gaussian_solve(eqst_eqs, eqst_ans)
+        sol = mathutil.solve_ldlt(eqst_eqs, eqst_ans)
         times.append(reactor.monotonic())
         tdiff = [times[i] - times[i-1] for i in range(1, len(times))]
         logging.info("angle calc %s: time %.6f (%s)", self.name,

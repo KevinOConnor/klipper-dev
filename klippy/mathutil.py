@@ -168,7 +168,7 @@ def mat_mul_transp(a):
         res_i.extend([res_j[i] for res_j in res[i+1:]])
     return res
 
-def gaussian_solve(a, rhs, allow_underdetermined=False):
+def solve_ldlt(a, rhs, allow_underdetermined=False):
     # Copy input (so rows can be reordered)
     m = list(a)
     res = list(rhs)
@@ -187,30 +187,21 @@ def gaussian_solve(a, rhs, allow_underdetermined=False):
     for i in range(rows_m-1, -1, -1):
         # Build i'th column by applying zero column scaling from previous loops
         lowert_i = lowert.pop()
-        cur_col = [m_j[i] - sum(map(mul, lowert_i, upper_j))
-                   for m_j, upper_j in zip(m, upper)]
-
-        # Find a pivot and swap the corresponding rows
-        cur_col_max_abs = max(cur_col, key=abs)
-        j = cur_col.index(cur_col_max_abs)
-        if i != j:
-            m[i], m[j] = m[j], m[i]
-            res[i], res[j] = res[j], res[i]
-            upper[i], upper[j] = upper[j], upper[i]
-            cur_col[j] = cur_col[i]
+        cur_col = [m_i_j - sum(map(mul, lowert_i, upper_j))
+                   for m_i_j, upper_j in zip(m[i], upper)]
+        cur_col_i = cur_col.pop()
 
         # Determine scale for the i'th row
-        if abs(cur_col_max_abs) < 1e-10:
+        if m[i][i] < 1e-10:
             if not allow_underdetermined:
                 return None
             recipr = 0.
         else:
-            recipr = 1. / cur_col_max_abs
+            recipr = 1. / cur_col_i
 
         # Apply zero column scaling and recipr scaling to i'th row
         upper_i = upper.pop()
-        lower[i] = lower_i = [recipr*(m_i_j - sum(map(mul, upper_i, lowert_j)))
-                              for m_i_j, lowert_j in zip(m[i], lowert)]
+        lower[i] = lower_i = [recipr*cur_col_j for cur_col_j in cur_col]
         for rest_k, res_i_k in zip(rest, res[i]):
             s = sum(map(mul, upper_i, rest_k))
             rest_k.append(recipr * (res_i_k - s))
@@ -234,11 +225,11 @@ def gaussian_solve(a, rhs, allow_underdetermined=False):
 def pseudo_inverse(m):
     mt = mat_transp(m)
     mtm = mat_mul_transp(mt)
-    return gaussian_solve(mtm, mt)
+    return solve_ldlt(mtm, mt)
 
 # Find least squares solution for a set of linear equations
 def solve_linear_equations(eqs, ans, allow_underdetermined=False):
     eqst = mat_transp(eqs)
     eqst_eqs = mat_mul_transp(eqst)
     eqst_ans = mat_mat_mul(eqst, ans)
-    return gaussian_solve(eqst_eqs, eqst_ans, allow_underdetermined)
+    return solve_ldlt(eqst_eqs, eqst_ans, allow_underdetermined)

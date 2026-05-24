@@ -255,7 +255,7 @@ class GenericCartesianKinematics:
     def _check_kinematics(self, report_error):
         matr, _ = self._get_kinematics_coeffs()
         mtm = mathutil.mat_mat_mul(mathutil.mat_transp(matr), matr)
-        res = mathutil.gaussian_solve(mtm, [[]] * len(mtm))
+        res = mathutil.solve_ldlt(mtm, [[]] * len(mtm))
         if res is None:
             raise report_error(
                     "Verify configured stepper(s) and their 'carriages' "
