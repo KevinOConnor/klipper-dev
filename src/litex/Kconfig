@@ -1,0 +1,53 @@
+# Kconfig settings for LiteX system-on-chip processors
+
+if MACH_LITEX
+
+config BOARD_DIRECTORY
+    string
+    default "litex"
+
+config LITEX_SELECT
+    bool
+    default y
+    select HAVE_STRICT_TIMING
+    select HAVE_LIMITED_CODE_SIZE
+
+
+######################################################################
+# Chip selection
+######################################################################
+
+config MCU
+    string
+    default "litex"
+
+config STACK_SIZE
+    int
+    default 512
+
+config LITEX_RAM_SEGMENT
+    string "Name of LiteX memory segment for program data"
+    default "sram"
+    help
+        The name of the LiteX region that Klipper should use for
+        general working storage. Available regions and their names are
+        defined by the LiteX build and may vary between FPGAs.
+
+config LITEX_CODE_SEGMENT
+    string "Name of LiteX memory segment that code will be located"
+    default "main_ram"
+    help
+        The name of the LiteX region that the Klipper code will be
+        located in. That is, this defines what the runtime code memory
+        address will be. Available regions and their names are defined
+        by the LiteX build and may vary between FPGAs.
+
+
+######################################################################
+# Communication inteface
+######################################################################
+
+config SERIAL
+    default y
+
+endif
