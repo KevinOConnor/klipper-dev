@@ -487,12 +487,12 @@ class QueryStatusHelper:
     def _do_query(self, eventtime):
         last_query = self.last_query
         query = self.last_query = {}
-        msglist = self.pending_queries
+        pq_list = self.pending_queries
         self.pending_queries = []
-        msglist.extend(self.clients.values())
         # Determine full list of printer objects to query
+        cl_list = list(self.clients.values())
         need_objs = {}
-        for cconn, subscription, send_func, template in msglist:
+        for cconn, subscription, send_func, template in (pq_list + cl_list):
             need_objs.update(subscription)
         # Query get_status() info for each requested printer object
         reactor = self.printer.get_reactor()
@@ -503,10 +503,23 @@ class QueryStatusHelper:
                     query[obj_name] = {}
                 else:
                     query[obj_name] = po.get_status(eventtime)
-        # Send response to each client
-        for cconn, subscription, send_func, template in msglist:
-            is_query = cconn is None
-            if not is_query and cconn.is_closed():
+        # Generate query responses
+        for cconn, subscription, send_func, template in pq_list:
+            cquery = {}
+            for obj_name, req_items in subscription.items():
+                res = query[obj_name]
+                if req_items is None:
+                    req_items = list(res.keys())
+                    if req_items:
+                        subscription[obj_name] = req_items
+                cquery[obj_name] = {ri: res.get(ri, None) for ri in req_items}
+            # Send data
+            tmp = dict(template)
+            tmp['params'] = {'eventtime': eventtime, 'status': cquery}
+            send_func(tmp)
+        # Send updates on subscriptions
+        for cconn, subscription, send_func, template in cl_list:
+            if cconn.is_closed():
                 del self.clients[cconn]
                 continue
             cquery = {}
@@ -520,12 +533,12 @@ class QueryStatusHelper:
                 cres = {}
                 for ri in req_items:
                     rd = res.get(ri, None)
-                    if is_query or rd != lres.get(ri):
+                    if rd != lres.get(ri):
                         cres[ri] = rd
-                if cres or is_query:
+                if cres:
                     cquery[obj_name] = cres
             # Send data
-            if cquery or is_query:
+            if cquery:
                 tmp = dict(template)
                 tmp['params'] = {'eventtime': eventtime, 'status': cquery}
                 send_func(tmp)
