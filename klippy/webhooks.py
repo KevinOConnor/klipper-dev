@@ -495,14 +495,26 @@ class QueryStatusHelper:
         for cconn, subscription, send_func, template in (pq_list + cl_list):
             need_objs.update(subscription)
         # Query get_status() info for each requested printer object
+        obj_changes = {}
         reactor = self.printer.get_reactor()
         with reactor.assert_no_pause():
             for obj_name in need_objs.keys():
                 po = self.printer.lookup_object(obj_name, None)
                 if po is None or not hasattr(po, 'get_status'):
-                    query[obj_name] = {}
+                    res = query[obj_name] = {}
                 else:
-                    query[obj_name] = po.get_status(eventtime)
+                    res = query[obj_name] = po.get_status(eventtime)
+                # Determine changes since last query
+                lres = last_query.get(obj_name, {})
+                if lres is not res:
+                    changes = res.copy()
+                    for old_field, old_value in lres.items():
+                        if old_field not in res:
+                            changes[old_field] = None
+                        elif old_value == res[old_field]:
+                            del changes[old_field]
+                    if changes:
+                        obj_changes[obj_name] = changes
         # Generate query responses
         for cconn, subscription, send_func, template in pq_list:
             cquery = {}
@@ -523,18 +535,13 @@ class QueryStatusHelper:
                 del self.clients[cconn]
                 continue
             cquery = {}
-            for obj_name, req_items in subscription.items():
-                res = query[obj_name]
+            for obj_name, changes in obj_changes.items():
+                if obj_name not in subscription:
+                    continue
+                req_items = subscription[obj_name]
                 if req_items is None:
-                    req_items = list(res.keys())
-                    if req_items:
-                        subscription[obj_name] = req_items
-                lres = last_query.get(obj_name, {})
-                cres = {}
-                for ri in req_items:
-                    rd = res.get(ri, None)
-                    if rd != lres.get(ri):
-                        cres[ri] = rd
+                    req_items = subscription[obj_name] = list(changes.keys())
+                cres = {f: v for f, v in changes.items() if f in req_items}
                 if cres:
                     cquery[obj_name] = cres
             # Send data
