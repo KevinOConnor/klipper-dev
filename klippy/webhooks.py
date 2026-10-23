@@ -520,11 +520,9 @@ class QueryStatusHelper:
             cquery = {}
             for obj_name, req_items in subscription.items():
                 res = query[obj_name]
-                if req_items is None:
-                    req_items = list(res.keys())
-                    if req_items:
-                        subscription[obj_name] = req_items
-                cquery[obj_name] = {ri: res.get(ri, None) for ri in req_items}
+                if req_items is not None:
+                    res = { ri: res.get(ri, None) for ri in req_items }
+                cquery[obj_name] = res
             # Send data
             tmp = dict(template)
             tmp['params'] = {'eventtime': eventtime, 'status': cquery}
@@ -539,11 +537,11 @@ class QueryStatusHelper:
                 if obj_name not in subscription:
                     continue
                 req_items = subscription[obj_name]
-                if req_items is None:
-                    req_items = subscription[obj_name] = list(changes.keys())
-                cres = {f: v for f, v in changes.items() if f in req_items}
-                if cres:
-                    cquery[obj_name] = cres
+                if req_items is not None:
+                    changes = { f: v for f, v in changes.items()
+                                if f in req_items }
+                if changes:
+                    cquery[obj_name] = changes
             # Send data
             if cquery:
                 tmp = dict(template)
