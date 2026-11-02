@@ -170,6 +170,12 @@
                 </li>
                 
                 <li class="md-select__item">
+                  <a href="/de/" hreflang="de" class="md-select__link">
+                    Deutsch
+                  </a>
+                </li>
+                
+                <li class="md-select__item">
                   <a href="/it/" hreflang="it" class="md-select__link">
                     Italiano
                   </a>
@@ -1503,7 +1509,7 @@ A calibrated force sensor is an important part of a load cell based probe.</p>
 <h2 id="using-load_cell_diagnostic">Using <code>LOAD_CELL_DIAGNOSTIC</code><a class="headerlink" href="#using-load_cell_diagnostic" title="Permanent link">&para;</a></h2>
 <p>When you first connect a load cell its good practice to check for issues by
 running <code>LOAD_CELL_DIAGNOSTIC</code>. This tool collects 10 seconds of data from the
-load cell and resport statistics:</p>
+load cell and reports statistics:</p>
 <div class="highlight"><pre><span></span><code>$ LOAD_CELL_DIAGNOSTIC
 // Collecting load cell data for 10 seconds...
 // Samples Collected: 3211
@@ -1637,7 +1643,7 @@ force exceeded it will shut down the printer with the error <code>!! Load cell
 endstop: too much force!</code>. There are a number of ways this can be triggered:</p>
 <p>The first risk this protects against is picking too large of a value for
 <code>drift_filter_cutoff_frequency</code>. This can cause the drift filter to filter out
-a probe event and continue the homing move. If this happens the
+a probe event and continue the homing move. If this happens, the
 <code>force_safety_limit</code> acts as a backup protection.</p>
 <p>The second problem is probing repeatedly in one place. Klipper does not retract
 the probe when doing a single <code>PROBE</code> command. This can result
@@ -1647,7 +1653,7 @@ external forces can vary greatly between probing locations,
 the <code>PROBE</code> command, load_cell_probe will tare the endstop at the current force.
 Multiple cycles of this will result in ever-increasing force on the toolhead.
 <code>force_safety_limit</code> stops this cycle from running out of control.</p>
-<p>Another way this run-away can happen is damage to a strain gauge. If the metal
+<p>Another way this runaway can happen is damage to a strain gauge. If the metal
 part is permanently bent it will change the <code>reference_tare_counts</code> of the
 device. This puts the starting tare value much closer to the limit making it
 more likely to be violated. You want to be notified if this is happening
@@ -1663,10 +1669,33 @@ measurements for 2 sample periods the watchdog will shut down the printer
 with an error <code>!! LoadCell Endstop timed out waiting on ADC data</code>.</p>
 <p>If this happens, the most likely cause is a fault from the ADC. Inadequate
 grounding of your printer can be the root cause. The frame, power supply
-case and pint bed should all be connected to ground. You may need to ground
+case and print bed should all be connected to ground. You may need to ground
 the frame in multiple places. Anodized aluminum extrusions do not conduct
 electricity well. You might need to sand the area where the grounding wire
 is attached to make good electrical contact.</p>
+<h4 id="interpolation">Interpolation<a class="headerlink" href="#interpolation" title="Permanent link">&para;</a></h4>
+<p>To increase the precision of the probing result, the position of the first
+contact between nozzle and bed can be estimated by fitting a piecewise function
+to the measured data. The data will consist of two regions: while the nozzle is
+above the bed, the force will be constant (at the tare value). When the nozzle
+is in contact with the bed, the force will increase linearly with decreasing z
+position. A piecewise function is fitted to the data and the optimal z position
+of the split point is found by minimising the error squared. This enables a
+resolution finer than the distance between the sampling points and will also be
+less sensitive to noise.</p>
+<p>Due to both physical and technical reasons, the interpolation uses data
+collected during an additional ascending movement after the initial descending
+move. The first 300ms of data collected during the ascending move will
+be used for the fit (this minimises the influence of tare drifts). The
+collected data must contain enough samples for the fit: at least 3 samples each
+below and above the contact point are required.</p>
+<p>It is recommended to use a relatively high trigger force for the probe to have
+a strong enough signal. If you have too few samples below the contact point,
+try increasing the <code>trigger_force</code> or reducing the <code>lift_speed</code>. However, if
+the <code>lift_speed</code> is too small, there will be too few samples above the contact
+point due to the 300ms window.</p>
+<p>The distance of the ascending move can be configured through the
+<code>sample_retract_dist</code> parameter.</p>
 <h2 id="load-cell-probe-setup">Load Cell Probe Setup<a class="headerlink" href="#load-cell-probe-setup" title="Permanent link">&para;</a></h2>
 <p>This section covers the process for commissioning a load cell probe.</p>
 <h3 id="verify-the-load-cell-first">Verify the Load Cell First<a class="headerlink" href="#verify-the-load-cell-first" title="Permanent link">&para;</a></h3>
@@ -1687,7 +1716,7 @@ carefully to look for issues.</p>
 commands. Use <code>LOAD_CELL_TEST_TAP</code> for testing functionality before probing.</p>
 <h3 id="suggested-probing-temperature">Suggested Probing Temperature<a class="headerlink" href="#suggested-probing-temperature" title="Permanent link">&para;</a></h3>
 <p>Currently, we suggest keeping the nozzle temperature below the level that causes
-the filament to ooze while homing and probing. 140C is a good starting
+the filament to ooze while homing and probing. 140°C is a good starting
 point. This temperature is also low enough not to scar PEI build surfaces.</p>
 <p>Fouling of the nozzle and the print bed due to oozing filament is the #1 source
 of probing error with the load cell probe. Klipper does not yet have a universal
@@ -1698,7 +1727,7 @@ quality taps is an area of active research.</p>
 location has become fouled by filament ooze. Modules like <code>quad_gantry_level</code>
 will repeatedly probe the same coordinates even if a probe previously failed
 there.</p>
-<p>Give the above it is strongly suggested not to probe at printing temperatures.</p>
+<p>Given the above it is strongly suggested not to probe at printing temperatures.</p>
 <h3 id="hot-nozzle-protection">Hot Nozzle Protection<a class="headerlink" href="#hot-nozzle-protection" title="Permanent link">&para;</a></h3>
 <p>The Voron project has a great macro for protecting your print surface from the
 hot nozzle. See <a href="https://github.com/VoronDesign/Voron-Tap/blob/main/config/tap_klipper_instructions.md">Voron Tap's
@@ -1725,7 +1754,7 @@ temperatures from PLA to PC.</p>
 <h4 id="calculating-the-temp_coeff-for-z_thermal_adjust">Calculating the <code>temp_coeff</code> for <code>[z_thermal_adjust]</code><a class="headerlink" href="#calculating-the-temp_coeff-for-z_thermal_adjust" title="Permanent link">&para;</a></h4>
 <p>The easiest way to do this is to measure at 2 different temperatures.
 Ideally these should be the upper and lower limits of the printing
-temperature range. E.g. 180C and 290C. You can perform a <code>PROBE_ACCURACY</code> at
+temperature range. E.g. 180°C and 290°C. You can perform a <code>PROBE_ACCURACY</code> at
 both temperatures and then calculate the difference of the <code>average z</code> at both.</p>
 <p>The adjustment value is the change in nozzle length divided by the change in
 temperature. e.g.</p>
@@ -1738,11 +1767,12 @@ Expect to have to move the nozzle further away as it gets longer when hot.</p>
 <h4 id="configure-z_thermal_adjust">Configure <code>[z_thermal_adjust]</code><a class="headerlink" href="#configure-z_thermal_adjust" title="Permanent link">&para;</a></h4>
 <p>Set up z_thermal_adjust to reference the <code>extruder</code> as the source of temperature
 data. E.g.:</p>
-<div class="highlight"><pre><span></span><code>[z_thermal_adjust nozzle]
+<div class="highlight"><pre><span></span><code>[z_thermal_adjust]
 temp_coeff=-0.00045455
 sensor_type: temperature_combined
 sensor_list: extruder
 combination_method: max
+maximum_deviation: 999
 min_temp: 0
 max_temp: 400
 max_z_adjustment: 0.1
@@ -1756,11 +1786,11 @@ changes. This is aimed at toolhead sensors and moving beds that experience lots
 of external forces that change while probing.</p>
 <h3 id="installing-scipy">Installing SciPy<a class="headerlink" href="#installing-scipy" title="Permanent link">&para;</a></h3>
 <p>The filtering code uses the excellent <a href="https://scipy.org/">SciPy</a> library to
-compute the filter coefficients based on the values your enter into the config.</p>
-<p>Pre-compiled SciPi builds are available for Python 3 on 32 bit Raspberry Pi
-systems. 32 bit + Python 3 is strongly recommended because it will streamline
-your installation experience. It does work with Python 2 but installation can
-take 30+ minutes and require installing additional tools.</p>
+compute the filter coefficients based on the values you enter into the config.</p>
+<p>Pre-compiled SciPi builds are available for Python 3 on 32-bit and 64-bit
+Raspberry Pi systems. 32-bit/64-bit + Python 3 is strongly recommended because
+it will streamline your installation experience. It does work with Python 2 but
+installation can take 30+ minutes and requires installing additional tools.</p>
 <div class="highlight"><pre><span></span><code>~/klippy-env/bin/pip<span class="w"> </span>install<span class="w"> </span>scipy
 </code></pre></div>
 
