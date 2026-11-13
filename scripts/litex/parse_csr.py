@@ -33,11 +33,20 @@ def error(msg):
     sys.stderr.write("Litex build error!\n%s\n" % (msg,))
     sys.exit(-1)
 
-def find_core(csr, core_type):
+def find_cores(csr, core_type, req_regs=None):
     out = []
     for cname, ctype in csr['cores'].items():
-        if ctype == core_type:
-            out.append(cname)
+        if ctype != core_type:
+            continue
+        if req_regs is not None:
+            f = [(cname + "_" + r) in csr['csr_registers'] for r in req_regs]
+            if not all(f):
+                continue
+        out.append(cname)
+    return out
+
+def find_core(csr, core_type):
+    out = find_cores(csr, core_type)
     if not out:
         error("Unable to find core type '%s'" % (core_type,))
     if len(out) != 1:
@@ -80,6 +89,44 @@ def build_mem_def(csr, local_name, seg_name):
     return ["#define %s 0x%08x" % (def_addr_name, seg_info['base']),
             "#define %s 0x%08x" % (def_size_name, seg_info['size'])]
 
+def build_gpio(csr):
+    def fmt_addr(reg_info):
+        return '(void*)0x%08x' % (reg_info['addr'],)
+    gpios = {}
+    # LEDs and GPIOOut
+    cores = find_cores(csr, "LedChaser", ["out"])
+    cores += find_cores(csr, "GPIOOut", ["out"])
+    for core in cores:
+        pinname = core + ".0"
+        out_reg = csr['csr_registers'][core+"_out"]
+        gpios[pinname] = {'out': fmt_addr(out_reg)}
+    # GPIOIn
+    cores = find_cores(csr, "GPIOIn", ["in"])
+    for core in cores:
+        pinname = core + ".0"
+        in_reg = csr['csr_registers'][core+"_in"]
+        gpios[pinname] = {'in': fmt_addr(in_reg)}
+    # GPIOTristate
+    cores = find_cores(csr, "GPIOTristate", ["in", "out", "oe"])
+    for core in cores:
+        pinname = core + ".0"
+        in_reg = csr['csr_registers'][core+"_in"]
+        out_reg = csr['csr_registers'][core+"_out"]
+        oe_reg = csr['csr_registers'][core+"_oe"]
+        gpios[pinname] = {'in': fmt_addr(in_reg),
+                          'out': fmt_addr(out_reg), 'oe': fmt_addr(oe_reg)}
+    # Generate output
+    pinnames = list(sorted(gpios.keys()))
+    out = [FILEHEADER]
+    for i, pinname in enumerate(pinnames):
+        out.append('DECL_ENUMERATION_RANGE("pin", "%s", GPIO(%d, 0), 32);'
+                   % (pinname, i))
+    out.append("struct gpiodef digital_regs[] = {")
+    for pinname in pinnames:
+        fields = [".%s=%s" % (f, v) for f, v in gpios[pinname].items()]
+        out.append("{ %s }," % (", ".join(fields)))
+    out.append("};")
+    return out
 
 def process(csr, options):
     out = [FILEHEADER]
@@ -102,7 +149,9 @@ def process(csr, options):
     out.extend(lines)
     lines = build_mem_def(csr, "RAM", options.ram)
     out.extend(lines)
-    return "\n".join(out)
+    # Output gpio definitions
+    gpiolines = build_gpio(csr)
+    return "\n".join(out), "\n".join(gpiolines)
 
 def main():
     # Parse program args
@@ -112,6 +161,8 @@ def main():
                     help="input csr.json file to parse")
     opts.add_option("-o", "--output-defs", dest="output_defs",
                     help="output C header file")
+    opts.add_option("-g", "--output-gpio", dest="output_gpio",
+                    help="output C gpio definition file")
     opts.add_option("-r", "--ram", dest="ram",
                     default='sram',
                     help="name of ram segment used for variables")
@@ -131,19 +182,27 @@ def main():
     csr = json.loads(fdata)
 
     # Process definitions
-    outdata = process(csr, options)
+    outdata, outgpio = process(csr, options)
 
     # Write output
-    old_data = None
+    old_data = old_gpio = None
     try:
         f = open(options.output_defs, "r")
         old_data = f.read()
         f.close()
+        if options.output_gpio is not None:
+            f = open(options.output_gpio, "r")
+            old_gpio = f.read()
+            f.close()
     except:
         pass
     if outdata != old_data:
         f = open(options.output_defs, "w")
         f.write(outdata)
+        f.close()
+    if options.output_gpio is not None and outgpio != old_gpio:
+        f = open(options.output_gpio, "w")
+        f.write(outgpio)
         f.close()
 
 if __name__ == '__main__':

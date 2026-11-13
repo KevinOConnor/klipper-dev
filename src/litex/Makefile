@@ -14,7 +14,7 @@ CFLAGS_klipper.elf += -nostdlib -lgcc -lc
 CFLAGS_klipper.elf += -T $(OUT)src/litex/riscv_link.ld
 $(OUT)klipper.elf: $(OUT)src/litex/riscv_link.ld
 
-src-y += litex/main.c litex/timer.c litex/serial.c
+src-y += litex/main.c litex/timer.c litex/serial.c litex/gpio.c
 src-y += litex/riscv_boot.c litex/riscv_irq.c
 src-y += generic/crc16_ccitt.c generic/serial_irq.c
 
@@ -22,7 +22,7 @@ src-y += generic/crc16_ccitt.c generic/serial_irq.c
 $(OUT)litex_defs.h: scripts/litex/parse_csr.py $(OUT)autoconf.h $(CSRFILE)
 	@echo "  Parsing CSRFILE $(CSRFILE)"
 	$(Q)if [ -z $(CSRFILE) ] ; then echo "Please specify CSRFILE"; exit 1 ; fi
-	$(Q)scripts/litex/parse_csr.py -r $(CONFIG_LITEX_RAM_SEGMENT) -c $(CONFIG_LITEX_CODE_SEGMENT) -i $(CSRFILE) -o $@
+	$(Q)scripts/litex/parse_csr.py -r $(CONFIG_LITEX_RAM_SEGMENT) -c $(CONFIG_LITEX_CODE_SEGMENT) -i $(CSRFILE) -g $(OUT)litex_gpio.h -o $@
 
 # Binary output file rules
 target-y := $(OUT)litex_defs.h $(target-y) $(OUT)klipper.bin
