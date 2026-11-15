@@ -15,6 +15,7 @@ RequiredCores = {
     "UART": "UART",
     "Timer": "TIMER",
     "SoCController": "SOC",
+    "Watchdog": "WATCHDOG",
 }
 
 # Required constants to extract

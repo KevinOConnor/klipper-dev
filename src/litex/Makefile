@@ -14,7 +14,7 @@ CFLAGS_klipper.elf += -nostdlib -lgcc -lc
 CFLAGS_klipper.elf += -T $(OUT)src/litex/riscv_link.ld
 $(OUT)klipper.elf: $(OUT)src/litex/riscv_link.ld
 
-src-y += litex/main.c litex/timer.c litex/serial.c litex/gpio.c
+src-y += litex/main.c litex/timer.c litex/serial.c litex/gpio.c litex/watchdog.c
 src-y += litex/riscv_boot.c litex/riscv_irq.c
 src-y += generic/crc16_ccitt.c generic/serial_irq.c
 
