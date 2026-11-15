@@ -14,6 +14,7 @@ FILEHEADER = """
 RequiredCores = {
     "UART": "UART",
     "Timer": "TIMER",
+    "SoCController": "SOC",
 }
 
 # Required constants to extract
@@ -135,8 +136,10 @@ def process(csr, options):
         cname = find_core(csr, core_type)
         lines = build_csr_registers(csr, local_name, cname)
         out.extend(lines)
-        lines = build_constant(csr, cname+"_interrupt", local_name+"_interrupt")
-        out.extend(lines)
+        irq_name = cname+"_interrupt"
+        if irq_name in csr['constants']:
+            lines = build_constant(csr, irq_name, local_name+"_interrupt")
+            out.extend(lines)
     # Output required constants
     for const_name in RequiredConstants:
         lines = build_constant(csr, const_name)
