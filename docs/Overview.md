@@ -102,3 +102,5 @@ communication with the Klipper developers.
 - [Hall filament width sensor](Hall_Filament_Width_Sensor.md)
 - [Eddy Current Inductive probe](Eddy_Probe.md)
 - [Load Cells](Load_Cell.md)
+- [LiteX](LiteX.md): Information on build Klipper for FPGAs using the
+  LiteX SoC infrastructure.

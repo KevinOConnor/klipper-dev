@@ -1,0 +1,67 @@
+# This is a dockerfile for installing and running LiteX along with the
+# Yosys Project Trellis toolchain (for building Lattice ECP5
+# FPGA bitstreams).
+#
+# Build this docker container with something like:
+#  docker build -t litex -f litex.docker
+
+FROM ubuntu:24.04
+
+# Install Yosys and Project Trellis
+ENV DEBIAN_FRONTEND noninteractive
+RUN apt-get update && apt-get -y install \
+    build-essential git make cmake wget \
+    pkg-config g++ clang bison flex gawk \
+    python3 python3-dev python-is-python3 virtualenv \
+    libboost-all-dev libboost-system-dev \
+    libboost-python-dev libboost-filesystem-dev \
+    libeigen3-dev libreadline-dev tcl-dev libffi-dev zlib1g-dev \
+    graphviz xdot \
+    jq iverilog \
+# needed for normal init environment
+    dumb-init
+
+WORKDIR /opt
+
+RUN git clone --recursive https://github.com/YosysHQ/prjtrellis
+RUN cd /opt/prjtrellis \
+    && git checkout f98e72e4963d9c9da57620595282e58d46a045f7 \
+    && cd /opt/prjtrellis/libtrellis \
+    && cmake -DCMAKE_INSTALL_PREFIX=/usr/local . \
+    && make -j4 \
+    && make install
+
+RUN git clone --recursive https://github.com/YosysHQ/nextpnr --branch nextpnr-0.8
+RUN cd /opt/nextpnr \
+    && mkdir -p build && cd build \
+    && cmake .. -DARCH=ecp5 -DTRELLIS_INSTALL_PREFIX=/usr/local \
+    && make -j4 \
+    && make install
+
+RUN git clone --recursive https://github.com/YosysHQ/yosys --branch v0.54
+RUN cd /opt/yosys \
+    && make config-gcc \
+    && make -j4 \
+    && make install
+
+RUN cd / \
+    && virtualenv /cocotb-env \
+    && /cocotb-env/bin/pip install cocotb==1.9.2
+
+# Install LiteX
+ARG LITEX_TAG=2026.04
+RUN cd /root/ \
+    && apt-get install -y gcc-riscv64-unknown-elf build-essential git make cmake \
+        python3 python3-dev python-is-python3 virtualenv wget \
+        openfpgaloader \
+    && wget "https://raw.githubusercontent.com/enjoy-digital/litex/${LITEX_TAG}/litex_setup.py" \
+    && chmod +x /root/litex_setup.py \
+    && virtualenv /litex-venv \
+    && /litex-venv/bin/pip install setuptools meson \
+    #&& /litex-venv/bin/python3 /root/litex_setup.py --tag=${LITEX_TAG} --init --install \
+    && /litex-venv/bin/python3 /root/litex_setup.py --init --install \
+    && /litex-venv/bin/python3 /root/litex_setup.py --gcc=riscv \
+    && rm /root/litex_setup.py
+
+# Use dumb-init as an entry point (for proper Unix signal handling)
+ENTRYPOINT ["/usr/bin/dumb-init", "--"]
